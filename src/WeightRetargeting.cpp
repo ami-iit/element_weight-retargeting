@@ -42,7 +42,7 @@ public:
         for(int i = 0; i<jointNames.size(); i++)
         {
             // compute values
-            double normalizedIntensity = (jointTorques[i] - jointTorquesMinThresholds[i]) / jointTorquesMaxThresholds[i];
+            double normalizedIntensity = (jointTorques[i] - jointTorquesMinThresholds[i]) / (jointTorquesMaxThresholds[i] - jointTorquesMinThresholds[i]);
 
             if(normalizedIntensity>0)
             {
@@ -55,14 +55,24 @@ public:
                 wearable::msg::WearableActuatorCommand& wearableActuatorCommand = actuatorCommandPort.prepare();
 
                 wearableActuatorCommand.value = actuationIntensity;
-                wearableActuatorCommand.info.name = jointNames[i];
                 wearableActuatorCommand.info.type = wearable::msg::ActuatorType::HAPTIC;
                 wearableActuatorCommand.info.status = wearable::msg::ActuatorStatus::OK;
                 wearableActuatorCommand.duration = 0;
+                
+                for(std::string& actuator : jointToActuators[i])
+                { 
+                    wearableActuatorCommand.info.name = "iFeelSuit::haptic::"+actuator;
 
-                // Send haptic actuator command
-                // NOTE: Use strict flag true for writing all the commands without dropping any old commands
-                actuatorCommandPort.write(true);
+                    yInfo() << "Sending "<< actuationIntensity << " to " << actuator << " with joint torque " << jointTorques[i];
+
+                    // Send haptic actuator command
+                    // NOTE: Use strict flag true for writing all the commands without dropping any old commands
+                    actuatorCommandPort.write(true);
+                }
+            }
+            else
+            {
+                yInfo() << "Not sending command for joint " << jointNames[i] << ", the value is "<< jointTorques[i];
             }
 
         }
@@ -76,27 +86,26 @@ public:
 
         std::string robotName = rf.find("robot").asString();
         if(!robotName.empty())
-            std::cout<<"robot OK"<<std::endl;
+            yDebug()<<"robot OK";
         else
-            std::cout <<"robot NOT OK"<<std::endl;
+            yDebug() <<"robot NOT OK";
 
         if(rf.check("remote_boards"))
-            std::cout<<"remote_boards OK"<<std::endl;
+            yDebug()<<"remote_boards OK";
         else
-            std::cout <<"remote_boards NOT OK"<<std::endl;
+            yDebug() <<"remote_boards NOT OK";
 
-        
         if(rf.check("joints_to_actuators"))
-            std::cout<<"joints_to_actuators OK"<<std::endl;
+            yDebug()<<"joints_to_actuators OK";
         else
-            std::cout<<"joints_to_actuators NOT OK"<<std::endl;
+            yDebug()<<"joints_to_actuators NOT OK";
 
         //TODO set from config
         remoteControlBoards = {"/right_arm"};
         jointNames = {"r_elbow"};
         jointToActuators = {{"Node#14@2", "Node#14@3"}};
-        jointTorquesMinThresholds = {2.0}; //TODO use iTorqueControl->getTorqueRanges???
-        jointTorquesMaxThresholds = {50.0}; //TODO use iTorqueControl->getTorqueRanges???
+        jointTorquesMinThresholds = {0.5}; //TODO use iTorqueControl->getTorqueRanges???
+        jointTorquesMaxThresholds = {5.5}; //TODO use iTorqueControl->getTorqueRanges???
 
         // configure the remapper
         yarp::os::Property propRemapper;
