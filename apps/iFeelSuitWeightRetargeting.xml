@@ -1,0 +1,40 @@
+<application>
+
+  <name>iFeelSuitWeightRetargeting</name>
+  <description>An application for running the weight retargeting application using iFeelSuit</description>
+
+  <var name="output_port">/WeightRetargeting/output:o</var>
+
+  <module>
+    <name>WeightRetargetingModule</name>
+    <parameters> --from WeightRetargetingElbows.ini --robot /icub</parameters>
+    <!--environment>YARP_FORWARD_LOG_ENABLE=1</environment-->
+    <description>Run iFeelSuit weight retargeting application</description>
+    <node>localhost</node>
+    <tag>WeightRetargetingModule</tag>
+    <!--dependencies>
+      <port timeout="2.0">/iFeelSuit/WearableActuatorsCommand/input:i</port>
+    </dependencies-->
+  </module>
+
+  <module>
+    <name>WeightRetargetingModuleSim</name>
+    <parameters> --from WeightRetargetingElbows.ini --robot /icub_sim</parameters>
+    <!--environment>YARP_FORWARD_LOG_ENABLE=1</environment-->
+    <description>Run iFeelSuit weight retargeting application with simulated icub</description>
+    <node>localhost</node>
+    <tag>WeightRetargetingModule</tag>
+    <!--dependencies>
+      <port timeout="2.0">/iFeelSuit/WearableActuatorsCommand/input:i</port>
+    </dependencies-->
+  </module>
+
+
+  <connection>
+    <from>${output_port}</from>
+    <to>/iFeelSuit/WearableActuatorsCommand/input:i</to>
+    <protocol>udp</protocol>
+  </connection>
+
+
+</application>
