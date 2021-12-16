@@ -18,12 +18,12 @@
   </module>
 
   <module>
-    <name>WeightRetargetingModuleSim</name>
-    <parameters> --from WeightRetargetingElbows.ini --robot /icub_sim</parameters>
+    <name>WeightRetargetingModule</name>
+    <parameters> --from WeightRetargetingElbows.ini --robot /icubSim</parameters>
     <!--environment>YARP_FORWARD_LOG_ENABLE=1</environment-->
     <description>Run iFeelSuit weight retargeting application with simulated icub</description>
     <node>localhost</node>
-    <tag>WeightRetargetingModule</tag>
+    <tag>WeightRetargetingModuleSim</tag>
     <!--dependencies>
       <port timeout="2.0">/iFeelSuit/WearableActuatorsCommand/input:i</port>
     </dependencies-->

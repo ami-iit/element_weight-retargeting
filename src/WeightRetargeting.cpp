@@ -10,7 +10,7 @@
 
 #include <thrift/WearableActuatorCommand.h>
 
-#define WEIGHT_RETARGETING_MAX_INTENSITY 123
+#define WEIGHT_RETARGETING_MAX_INTENSITY 127
 
 class WeightRetargetingModule : public yarp::os::RFModule
 {
@@ -51,19 +51,19 @@ public:
                 //TODO check if it's better to use steps
                 double actuationIntensity = (int)(normalizedIntensity*WEIGHT_RETARGETING_MAX_INTENSITY);
 
-                //send the haptic command
-                wearable::msg::WearableActuatorCommand& wearableActuatorCommand = actuatorCommandPort.prepare();
-
-                wearableActuatorCommand.value = actuationIntensity;
-                wearableActuatorCommand.info.type = wearable::msg::ActuatorType::HAPTIC;
-                wearableActuatorCommand.info.status = wearable::msg::ActuatorStatus::OK;
-                wearableActuatorCommand.duration = 0;
-                
+                //send the haptic command to all the related actuators
                 for(std::string& actuator : jointToActuators[i])
                 { 
+                    wearable::msg::WearableActuatorCommand& wearableActuatorCommand = actuatorCommandPort.prepare();
+
+                    wearableActuatorCommand.value = actuationIntensity;
+                    wearableActuatorCommand.info.type = wearable::msg::ActuatorType::HAPTIC;
+                    wearableActuatorCommand.info.status = wearable::msg::ActuatorStatus::OK;
+                    wearableActuatorCommand.duration = 0;
+
                     wearableActuatorCommand.info.name = "iFeelSuit::haptic::"+actuator;
 
-                    yInfo() << "Sending "<< actuationIntensity << " to " << actuator << " with joint torque " << jointTorques[i];
+                    yInfo() << "Sending "<< wearableActuatorCommand.value << " to " << wearableActuatorCommand.info.name << " with joint torque " << jointTorques[i];
 
                     // Send haptic actuator command
                     // NOTE: Use strict flag true for writing all the commands without dropping any old commands
@@ -101,11 +101,32 @@ public:
             yDebug()<<"joints_to_actuators NOT OK";
 
         //TODO set from config
-        remoteControlBoards = {"/right_arm"};
-        jointNames = {"r_elbow"};
-        jointToActuators = {{"Node#14@2", "Node#14@3"}};
-        jointTorquesMinThresholds = {0.5}; //TODO use iTorqueControl->getTorqueRanges???
-        jointTorquesMaxThresholds = {5.5}; //TODO use iTorqueControl->getTorqueRanges???
+        remoteControlBoards = {"/left_arm","/right_arm"};
+        jointNames = {"l_elbow","r_elbow"};
+
+        bool opposite_muscles = false;
+
+        if(opposite_muscles)
+        {
+            jointToActuators = 
+            {
+                //left el
+                {"Node#13@2", "Node#13@3"},
+                {"Node#14@4", "Node#14@5"}
+            };
+        }
+        else
+        {
+            jointToActuators = 
+            {
+                {"Node#13@1", "Node#14@6"},
+                {"Node#14@6", "Node#13@7"}
+            };
+        }
+
+
+        jointTorquesMinThresholds = {0.5, 0.5}; //TODO use iTorqueControl->getTorqueRanges???
+        jointTorquesMaxThresholds = {5.5, 5.5}; //TODO use iTorqueControl->getTorqueRanges???
 
         // configure the remapper
         yarp::os::Property propRemapper;
@@ -130,7 +151,7 @@ public:
             yError() << "Unable to open the ControlBoardRemapper";
             return result;
         }
-        
+
         result = remappedControlBoard.view(iTorqueControl);
 
         if(!result)
