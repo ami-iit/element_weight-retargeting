@@ -16,12 +16,14 @@ class WeightRetargetingModule : public yarp::os::RFModule
 {
 public:
 
+    const std::string IFEEL_SUIT_ACTUATOR_PREFIX = "iFeelSuit::haptic::Node";
+
     yarp::dev::PolyDriver remappedControlBoard;
     yarp::dev::ITorqueControl* iTorqueControl{ nullptr };
 
     std::vector<std::string> remoteControlBoards;
     std::vector<std::string> jointNames;
-    std::vector<std::vector<std::string>> jointToActuators;
+    std::vector<std::vector<std::string>> jointAxesToActuators;
     std::vector<double> jointTorquesMinThresholds;
     std::vector<double> jointTorquesMaxThresholds;
 
@@ -52,7 +54,7 @@ public:
                 double actuationIntensity = (int)(normalizedIntensity*WEIGHT_RETARGETING_MAX_INTENSITY);
 
                 //send the haptic command to all the related actuators
-                for(std::string& actuator : jointToActuators[i])
+                for(std::string& actuator : jointAxesToActuators[i])
                 { 
                     wearable::msg::WearableActuatorCommand& wearableActuatorCommand = actuatorCommandPort.prepare();
 
@@ -61,7 +63,7 @@ public:
                     wearableActuatorCommand.info.status = wearable::msg::ActuatorStatus::OK;
                     wearableActuatorCommand.duration = 0;
 
-                    wearableActuatorCommand.info.name = "iFeelSuit::haptic::"+actuator;
+                    wearableActuatorCommand.info.name = IFEEL_SUIT_ACTUATOR_PREFIX+actuator;
 
                     yInfo() << "Sending "<< wearableActuatorCommand.value << " to " << wearableActuatorCommand.info.name << " with joint torque " << jointTorques[i];
 
@@ -85,48 +87,61 @@ public:
         bool result = true;
 
         std::string robotName = rf.find("robot").asString();
-        if(!robotName.empty())
-            yDebug()<<"robot OK";
-        else
-            yDebug() <<"robot NOT OK";
-
-        if(rf.check("remote_boards"))
-            yDebug()<<"remote_boards OK";
-        else
-            yDebug() <<"remote_boards NOT OK";
-
-        if(rf.check("joints_to_actuators"))
-            yDebug()<<"joints_to_actuators OK";
-        else
-            yDebug()<<"joints_to_actuators NOT OK";
-
-        //TODO set from config
-        remoteControlBoards = {"/left_arm","/right_arm"};
-        jointNames = {"l_elbow","r_elbow"};
-
-        bool opposite_muscles = false;
-
-        if(opposite_muscles)
+        if(robotName.empty())
         {
-            jointToActuators = 
-            {
-                //left el
-                {"Node#13@2", "Node#13@3"},
-                {"Node#14@4", "Node#14@5"}
-            };
-        }
-        else
-        {
-            jointToActuators = 
-            {
-                {"Node#13@1", "Node#14@6"},
-                {"Node#14@6", "Node#13@7"}
-            };
+            yError() << "Missing parameter: robot";
+            return false;
         }
 
+        yarp::os::Bottle* remoteBoardsBottle = rf.find("remote_boards").asList();
+        
+        // remote control boards 
+        if(remoteBoardsBottle==nullptr)
+        {
+            yError()<<"Missing parameter: remote_boards";
+            return false;
+        }
 
-        jointTorquesMinThresholds = {0.5, 0.5}; //TODO use iTorqueControl->getTorqueRanges???
-        jointTorquesMaxThresholds = {5.5, 5.5}; //TODO use iTorqueControl->getTorqueRanges???
+        yDebug()<<"remote_boards OK";
+        for(int i=0;i<remoteBoardsBottle->size();i++)
+        {
+            std::string remoteBoard = remoteBoardsBottle->get(i).asString();
+            
+            remoteControlBoards.push_back(remoteBoard);
+            yDebug()<< "Added remote control board:" << remoteBoard;
+        } 
+        
+        // information on joint axes and actuators
+        yarp::os::Bottle* jointToActuatorsBottle = rf.find("joints_to_actuators").asList();
+        if(jointToActuatorsBottle==nullptr)
+        {
+            yError()<<"Missing parameter: joints_to_actuators";
+            return false;
+        }
+
+        yDebug()<<"joints_to_actuators OK";
+        for(int i=0; i<jointToActuatorsBottle->size(); i++)
+        {
+            yarp::os::Bottle* jointAxisInfo = jointToActuatorsBottle->get(i).asList(); 
+            
+            //get axis name
+            std::string axisName = jointAxisInfo->get(0).asString();
+            //get min threshold
+            double minThresh = jointAxisInfo->get(1).asDouble();
+            //get max threshold
+            double maxThresh = jointAxisInfo->get(2).asDouble();
+            //get list of actuators
+            yDebug()<< (axisName.empty() ? "Axis name error!" : "Added joint axis "+axisName)
+                    <<"| Min threshold"<< minThresh << "| Max threshold"<< maxThresh;
+            yarp::os::Bottle* actuatorListBottle = jointAxisInfo->get(3).asList();
+            std::vector<std::string> actuatorList = {};
+            for(int j = 0; j<actuatorListBottle->size(); j++) actuatorList.push_back(actuatorListBottle->get(j).asString());
+
+            jointNames.push_back(axisName);
+            jointAxesToActuators.push_back(actuatorList);
+            jointTorquesMinThresholds.push_back(minThresh);
+            jointTorquesMaxThresholds.push_back(maxThresh);
+        }
 
         // configure the remapper
         yarp::os::Property propRemapper;
@@ -141,8 +156,6 @@ public:
         for(std::string& s : remoteControlBoards) remoteControlBoardsNamesBottle.addString(robotName+s);
         // localPortPrefix
         propRemapper.put("localPortPrefix", "/WeightRetargeting/input");
-
-
 
         result = remappedControlBoard.open(propRemapper);
 

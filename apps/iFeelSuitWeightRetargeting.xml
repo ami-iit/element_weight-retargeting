@@ -7,8 +7,8 @@
 
   <module>
     <name>WeightRetargetingModule</name>
-    <parameters> --from WeightRetargetingElbows.ini --robot /icub</parameters>
-    <!--environment>YARP_FORWARD_LOG_ENABLE=1</environment-->
+    <parameters>--from config/WeightRetargetingElbows.ini --robot /icub</parameters>
+    <environment>YARP_FORWARD_LOG_ENABLE=1</environment>
     <description>Run iFeelSuit weight retargeting application</description>
     <node>localhost</node>
     <tag>WeightRetargetingModule</tag>
@@ -19,8 +19,8 @@
 
   <module>
     <name>WeightRetargetingModule</name>
-    <parameters> --from WeightRetargetingElbows.ini --robot /icubSim</parameters>
-    <!--environment>YARP_FORWARD_LOG_ENABLE=1</environment-->
+    <parameters>--from config/WeightRetargetingElbows.ini --robot /icubSim</parameters>
+    <environment>YARP_FORWARD_LOG_ENABLE=1</environment>
     <description>Run iFeelSuit weight retargeting application with simulated icub</description>
     <node>localhost</node>
     <tag>WeightRetargetingModuleSim</tag>
