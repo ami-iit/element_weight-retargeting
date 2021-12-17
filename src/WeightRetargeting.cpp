@@ -1,6 +1,4 @@
-#include <iostream>
-
-#include <stdio.h>
+#include <algorithm>
 #include <yarp/os/Network.h>
 #include <yarp/os/RFModule.h>
 #include <yarp/os/LogStream.h>
@@ -8,11 +6,13 @@
 #include <yarp/dev/PolyDriver.h>
 #include <yarp/dev/ITorqueControl.h>
 
+#include <thrift/WeightRetargetingService.h>
+
 #include <thrift/WearableActuatorCommand.h>
 
 #define WEIGHT_RETARGETING_MAX_INTENSITY 127
 
-class WeightRetargetingModule : public yarp::os::RFModule
+class WeightRetargetingModule : public yarp::os::RFModule, WeightRetargetingService
 {
 public:
 
@@ -208,6 +208,53 @@ public:
     {
         actuatorCommandPort.close();
         delete jointTorques;
+        return true;
+    }
+
+    int findIndexOfAxis(const std::string& axis)
+    {
+        for(int i=0;i<jointNames.size(); i++)
+            if(jointNames[i]==axis)
+                return i;
+
+        return -1;
+    }
+
+    bool setMaxThreshold(const std::string& axis, const double value) override
+    {
+        int index = findIndexOfAxis(axis);
+
+        if(index==-1 || jointTorquesMinThresholds[index]>value)
+            return false;
+
+        jointTorquesMaxThresholds[index] = value;
+        return true;
+    }
+
+    bool setMinThreshold(const std::string& axis, const double value) override
+    {
+        int index = findIndexOfAxis(axis);
+
+        if(index==-1 || jointTorquesMaxThresholds[index]<value)
+            return false;
+
+        jointTorquesMinThresholds[index] = value;
+        return true;
+    }
+
+    bool setThresholds(const std::string& axis, const double minThreshold, const double maxThreshold) override
+    {
+        if(minThreshold>=maxThreshold)
+            return false;
+        
+        int index = findIndexOfAxis(axis);
+
+        if(index==-1)
+            return false;
+
+        jointTorquesMinThresholds[index] = minThreshold;
+        jointTorquesMaxThresholds[index] = maxThreshold;
+        
         return true;
     }
 
