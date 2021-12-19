@@ -30,6 +30,9 @@ public:
     // Haptic command
     yarp::os::BufferedPort<wearable::msg::WearableActuatorCommand> actuatorCommandPort;
 
+    // RPC
+    yarp::os::Port rpcPort;
+
     double * jointTorques = nullptr;
 
     double getPeriod() override
@@ -192,6 +195,22 @@ public:
         if(!actuatorCommandPort.open(wearableActuatorCommandPortName))
         {
             yError() << "Failed to open " << actuatorCommandPort.getName();
+            return false;
+        }
+
+        // Initialize RPC
+
+        this->yarp().attachAsServer(rpcPort);
+        std::string rpcPortName = "/WeightRetargeting/rpc:i"; //TODO from config?
+        // open the RPC port
+        if(!rpcPort.open(rpcPortName))
+        {
+            yError() << "Failed to open " << actuatorCommandPort.getName();
+            return false;
+        }
+        // attach the port
+        if (!this->yarp().attachAsServer(rpcPort)) {
+            yError() << "Failed to attach " << rpcPortName << " to the RPC service";
             return false;
         }
 
