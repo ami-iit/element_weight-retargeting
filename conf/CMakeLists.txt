@@ -3,5 +3,5 @@ cmake_minimum_required(VERSION 3.0.0)
 file (GLOB ${CMAKE_PROJECT_NAME}_CONF_FILES *.ini)
 
 install(FILES ${${CMAKE_PROJECT_NAME}_CONF_FILES}
-        DESTINATION ${CMAKE_INSTALL_PREFIX}/share/config)
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/share)
 

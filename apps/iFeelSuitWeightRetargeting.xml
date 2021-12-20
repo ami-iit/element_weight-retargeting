@@ -4,35 +4,21 @@
   <description>An application for running the weight retargeting application using iFeelSuit</description>
 
   <var name="output_port">/WeightRetargeting/output:o</var>
+  <var name="actuator_input_port">/iFeelSuit/WearableActuatorsCommand/input:i</var>
 
   <module>
     <name>WeightRetargetingModule</name>
-    <parameters>--from config/WeightRetargetingElbows.ini --robot /icub</parameters>
+    <parameters>--from WeightRetargetingElbows.ini</parameters>
     <environment>YARP_FORWARD_LOG_ENABLE=1</environment>
-    <description>Run iFeelSuit weight retargeting application</description>
+    <description>Run weight retargeting application</description>
     <node>localhost</node>
     <tag>WeightRetargetingModule</tag>
-    <!--dependencies>
-      <port timeout="2.0">/iFeelSuit/WearableActuatorsCommand/input:i</port>
-    </dependencies-->
-  </module>
-
-  <module>
-    <name>WeightRetargetingModule</name>
-    <parameters>--from config/WeightRetargetingElbows.ini --robot /icubSim</parameters>
-    <environment>YARP_FORWARD_LOG_ENABLE=1</environment>
-    <description>Run iFeelSuit weight retargeting application with simulated icub</description>
-    <node>localhost</node>
-    <tag>WeightRetargetingModuleSim</tag>
-    <!--dependencies>
-      <port timeout="2.0">/iFeelSuit/WearableActuatorsCommand/input:i</port>
-    </dependencies-->
   </module>
 
 
   <connection>
     <from>${output_port}</from>
-    <to>/iFeelSuit/WearableActuatorsCommand/input:i</to>
+    <to>${actuator_input_port}</to>
     <protocol>udp</protocol>
   </connection>
 
