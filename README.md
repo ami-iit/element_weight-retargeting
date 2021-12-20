@@ -31,3 +31,10 @@ The following milestones have been outlined:
   First, a literature review on the topic, with a focus on the ones addressing haptic feedbacks, has to be done. Then we have to understand how we can employ the data collected by our system and the equipment to make the human have a perception of the weight of the object. 
 - Develop the weight retargeting application
 
+## Installation
+
+Refer to the [Installation guide](Installation.md) for this point.
+
+## Usage
+
+Please refer to the [Usage guide](Usage.md) for this point.
