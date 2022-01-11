@@ -26,14 +26,13 @@ public:
     std::vector<std::vector<std::string>> jointAxesToActuators;
     std::vector<double> jointTorquesMinThresholds;
     std::vector<double> jointTorquesMaxThresholds;
+    std::vector<double> jointTorques;
 
     // Haptic command
     yarp::os::BufferedPort<wearable::msg::WearableActuatorCommand> actuatorCommandPort;
 
     // RPC
     yarp::os::Port rpcPort;
-
-    double * jointTorques = nullptr;
 
     double getPeriod() override
     {
@@ -42,7 +41,7 @@ public:
 
     bool updateModule() override
     {
-        iTorqueControl->getTorques(jointTorques);
+        iTorqueControl->getTorques(jointTorques.data());
 
         for(int i = 0; i<jointNames.size(); i++)
         {
@@ -186,7 +185,7 @@ public:
         }
         else
         {
-            jointTorques = new double[axes];
+            jointTorques.reserve(axes);
         }
 
         std::string wearableActuatorCommandPortName = "/WeightRetargeting/output:o";//TODO config
@@ -226,7 +225,6 @@ public:
     bool close() override
     {
         actuatorCommandPort.close();
-        delete jointTorques;
         return true;
     }
 
