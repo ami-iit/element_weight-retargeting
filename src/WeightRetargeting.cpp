@@ -12,6 +12,8 @@
 
 #define WEIGHT_RETARGETING_MAX_INTENSITY 127
 
+YARP_LOG_COMPONENT(WEIGHT_RETARGETING_LOG_COMPONENT, "WeightRetargetingModule")
+
 class WeightRetargetingModule : public yarp::os::RFModule, WeightRetargetingService
 {
 public:
@@ -67,7 +69,7 @@ public:
 
                     wearableActuatorCommand.info.name = IFEEL_SUIT_ACTUATOR_PREFIX+actuator;
 
-                    yInfo() << "Sending "<< wearableActuatorCommand.value << " to " << wearableActuatorCommand.info.name << " with joint torque " << jointTorques[i];
+                    yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Sending"<< wearableActuatorCommand.value << "to" << wearableActuatorCommand.info.name << "with joint torque" << jointTorques[i];
 
                     // Send haptic actuator command
                     // NOTE: Use strict flag true for writing all the commands without dropping any old commands
@@ -76,7 +78,7 @@ public:
             }
             else
             {
-                yInfo() << "Not sending command for joint " << jointNames[i] << ", the value is "<< jointTorques[i];
+                yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Not sending command for joint" << jointNames[i] << ", the value is"<< jointTorques[i];
             }
 
         }
@@ -91,7 +93,7 @@ public:
         std::string robotName = rf.find("robot").asString();
         if(robotName.empty())
         {
-            yError() << "Missing parameter: robot";
+            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter: robot";
             return false;
         }
 
@@ -100,28 +102,28 @@ public:
         // remote control boards 
         if(remoteBoardsBottle==nullptr)
         {
-            yError()<<"Missing parameter: remote_boards";
+            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter: remote_boards";
             return false;
         }
 
-        yDebug()<<"remote_boards OK";
+        yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "remote_boards OK";
         for(int i=0;i<remoteBoardsBottle->size();i++)
         {
             std::string remoteBoard = remoteBoardsBottle->get(i).asString();
             
             remoteControlBoards.push_back(remoteBoard);
-            yDebug()<< "Added remote control board:" << remoteBoard;
+            yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Added remote control board:" << remoteBoard;
         } 
         
         // information on joint axes and actuators
         yarp::os::Bottle* jointToActuatorsBottle = rf.find("joints_to_actuators").asList();
         if(jointToActuatorsBottle==nullptr)
         {
-            yError()<<"Missing parameter: joints_to_actuators";
+            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter: joints_to_actuators";
             return false;
         }
 
-        yDebug()<<"joints_to_actuators OK";
+        yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "joints_to_actuators OK";
         for(int i=0; i<jointToActuatorsBottle->size(); i++)
         {
             yarp::os::Bottle* jointAxisInfo = jointToActuatorsBottle->get(i).asList(); 
@@ -133,7 +135,7 @@ public:
             //get max threshold
             double maxThresh = jointAxisInfo->get(2).asDouble();
             //get list of actuators
-            yDebug()<< (axisName.empty() ? "Axis name error!" : "Added joint axis "+axisName)
+            yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << (axisName.empty() ? "Axis name error!" : "Added joint axis "+axisName)
                     <<"| Min threshold"<< minThresh << "| Max threshold"<< maxThresh;
             yarp::os::Bottle* actuatorListBottle = jointAxisInfo->get(3).asList();
             std::vector<std::string> actuatorList = {};
@@ -163,7 +165,7 @@ public:
 
         if(!result)
         {
-            yError() << "Unable to open the ControlBoardRemapper";
+            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Unable to open the ControlBoardRemapper";
             return result;
         }
 
@@ -171,7 +173,7 @@ public:
 
         if(!result)
         {
-            yError() << "Unable to get torque control interface";
+            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Unable to get torque control interface";
             return result;
         }
 
@@ -179,8 +181,7 @@ public:
         iTorqueControl->getAxes(&axes);
         if(axes!=jointNames.size())
         {
-            //TODO
-            yError() << "Number of iTorqueControl axes is different than the configured ones";
+            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Number of iTorqueControl axes is different than the configured ones";
             result = false;
         }
         else
@@ -193,7 +194,7 @@ public:
         // Initialize actuator command port and connect to command input port
         if(!actuatorCommandPort.open(wearableActuatorCommandPortName))
         {
-            yError() << "Failed to open " << actuatorCommandPort.getName();
+            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Failed to open" << actuatorCommandPort.getName();
             return false;
         }
 
@@ -204,12 +205,12 @@ public:
         // open the RPC port
         if(!rpcPort.open(rpcPortName))
         {
-            yError() << "Failed to open " << actuatorCommandPort.getName();
+            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Failed to open" << actuatorCommandPort.getName();
             return false;
         }
         // attach the port
         if (!this->yarp().attachAsServer(rpcPort)) {
-            yError() << "Failed to attach " << rpcPortName << " to the RPC service";
+            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Failed to attach" << rpcPortName << "to the RPC service";
             return false;
         }
 
@@ -289,10 +290,10 @@ int main(int argc, char * argv[])
     yarp::os::ResourceFinder rf;
     rf.configure(argc, argv);
 
-    yInfo() << "Configuring and starting module.\n";
+    yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Configuring and starting module.";
 
     if (!module.runModule(rf)) {
-        yError() << "Error module did not start\n";
+        yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Module did not start.";
     }
 
     return 0;
