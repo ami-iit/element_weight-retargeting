@@ -43,34 +43,40 @@ public:
         return period; //50Hz
     }
 
+    double computeActuationIntensity(const double measuredTorque, const double minThreshold, const double maxThreshold)
+    {
+        double actuationIntensity = 0.0;
+        double normalizedTorque = (measuredTorque - minThreshold) / (maxThreshold - minThreshold);
+        if(normalizedTorque>0)
+        {
+            if(normalizedTorque>1.0) normalizedTorque = 1.0;
+
+            //TODO check if it's better to use steps
+            actuationIntensity = (int)(normalizedTorque*WEIGHT_RETARGETING_MAX_INTENSITY);
+        }
+        return actuationIntensity;
+    }
+
     bool updateModule() override
     {
         iTorqueControl->getTorques(jointTorques.data());
 
         for(int i = 0; i<jointNames.size(); i++)
         {
-            // compute values
-            double normalizedIntensity = (jointTorques[i] - jointTorquesMinThresholds[i]) / (jointTorquesMaxThresholds[i] - jointTorquesMinThresholds[i]);
+            double actuationIntensity = computeActuationIntensity(jointTorques[i], jointTorquesMinThresholds[i], jointTorquesMaxThresholds[i]);
 
-            if(normalizedIntensity>0)
+            if(actuationIntensity>0)
             {
-                if(normalizedIntensity>1.0) normalizedIntensity = 1.0;
-
-                //TODO check if it's better to use steps
-                double actuationIntensity = (int)(normalizedIntensity*WEIGHT_RETARGETING_MAX_INTENSITY);
-
                 //send the haptic command to all the related actuators
                 for(std::string& actuator : jointAxesToActuators[i])
                 { 
                     wearable::msg::WearableActuatorCommand& wearableActuatorCommand = actuatorCommandPort.prepare();
 
                     wearableActuatorCommand.value = actuationIntensity;
+                    wearableActuatorCommand.info.name = IFEEL_SUIT_ACTUATOR_PREFIX+actuator;;
                     wearableActuatorCommand.info.type = wearable::msg::ActuatorType::HAPTIC;
                     wearableActuatorCommand.info.status = wearable::msg::ActuatorStatus::OK;
                     wearableActuatorCommand.duration = 0;
-
-                    wearableActuatorCommand.info.name = IFEEL_SUIT_ACTUATOR_PREFIX+actuator;
-
                     yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Sending"<< wearableActuatorCommand.value << "to" << wearableActuatorCommand.info.name << "with joint torque" << jointTorques[i];
 
                     // Send haptic actuator command
