@@ -95,6 +95,9 @@ public:
         {
             yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter: robot";
             return false;
+        } else if (robotName[0]!='/')
+        {
+            robotName = "/"+robotName;
         }
 
         yarp::os::Bottle* remoteBoardsBottle = rf.find("remote_boards").asList();
@@ -110,9 +113,11 @@ public:
         for(int i=0;i<remoteBoardsBottle->size();i++)
         {
             std::string remoteBoard = remoteBoardsBottle->get(i).asString();
-            
-            remoteControlBoards.push_back(remoteBoard);
+
             yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Added remote control board:" << remoteBoard;
+
+            if(remoteBoard[0]!='/') remoteBoard = "/"+remoteBoard;
+            remoteControlBoards.push_back(remoteBoard);
         } 
         
         // information on joint axes and actuators
