@@ -16,7 +16,7 @@ class WeightRetargetingModule : public yarp::os::RFModule, WeightRetargetingServ
 {
 public:
 
-    const std::string IFEEL_SUIT_ACTUATOR_PREFIX = "iFeelSuit::haptic::Node";
+    const std::string IFEEL_SUIT_ACTUATOR_PREFIX = "iFeelSuit::haptic::Node#";
 
     yarp::dev::PolyDriver remappedControlBoard;
     yarp::dev::ITorqueControl* iTorqueControl{ nullptr };
