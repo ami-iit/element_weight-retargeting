@@ -20,6 +20,8 @@ public:
 
     const std::string IFEEL_SUIT_ACTUATOR_PREFIX = "iFeelSuit::haptic::Node#";
 
+    double period = 0.02; //Default 50Hz
+
     yarp::dev::PolyDriver remappedControlBoard;
     yarp::dev::ITorqueControl* iTorqueControl{ nullptr };
 
@@ -38,7 +40,7 @@ public:
 
     double getPeriod() override
     {
-        return 0.02; //50Hz
+        return period; //50Hz
     }
 
     bool updateModule() override
@@ -98,6 +100,15 @@ public:
         } else if (robotName[0]!='/')
         {
             robotName = "/"+robotName;
+        }
+
+        if(!rf.check("period"))
+        {
+            yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter period, using default value" << period;
+        } else 
+        {
+            period = rf.find("period").asDouble();
+            yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Found parameter period:" << period;
         }
 
         yarp::os::Bottle* remoteBoardsBottle = rf.find("remote_boards").asList();
