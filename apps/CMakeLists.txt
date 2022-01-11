@@ -1,4 +1,4 @@
 file (GLOB ${CMAKE_PROJECT_NAME}_APP_FILES *.xml)
 
 install(FILES ${${CMAKE_PROJECT_NAME}_APP_FILES}
-        DESTINATION ${CMAKE_INSTALL_PREFIX}/share/applications)
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/share/yarp/applications)

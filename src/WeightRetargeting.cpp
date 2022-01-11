@@ -304,6 +304,7 @@ int main(int argc, char * argv[])
 
     // prepare and configure the resource finder
     yarp::os::ResourceFinder rf;
+    rf.setDefaultContext("WeightRetargeting");
     rf.configure(argc, argv);
 
     yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Configuring and starting module.";

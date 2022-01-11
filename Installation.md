@@ -22,6 +22,6 @@ Once the installation is completed, make the WeightRetargetingModule visible:
 Append the following lines to your `.bashrc`:
 
 ```bash
-export YARP_DATA_DIRS=$YARP_DATA_DIRS:<weight-retargeting-directory>/build/install/share
+export YARP_DATA_DIRS=$YARP_DATA_DIRS:<weight-retargeting-directory>/build/install/share/yarp
 export PATH=$PATH:<weight-retargeting-directory>/build/install/bin
 ```
