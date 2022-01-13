@@ -175,7 +175,7 @@ public:
             groupInfo.maxThreshold = groupInfoBottle->get(3).asDouble();
             //get list of actuators
             yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Added actuator group: name"<<groupName <<"| Joint axis"<<axisName
-                                                      <<"| Min threshold"<< groupInfo.maxThreshold << "| Max threshold"<< axisName;
+                                                      <<"| Min threshold"<< groupInfo.minThreshold << "| Max threshold"<< groupInfo.maxThreshold;
             yarp::os::Bottle* actuatorListBottle = groupInfoBottle->get(4).asList();
             std::vector<std::string> actuatorList = {};
             for(int j = 0; j<actuatorListBottle->size(); j++) groupInfo.actuators.push_back(actuatorListBottle->get(j).asString());
@@ -293,7 +293,7 @@ public:
             return false;
 
         actuatorGroupMap[actuatorGroup].minThreshold = value;
-        return false;
+        return true;
     }
 
     bool setThresholds(const std::string& actuatorGroup, const double minThreshold, const double maxThreshold) override
@@ -303,7 +303,7 @@ public:
 
         actuatorGroupMap[actuatorGroup].minThreshold = minThreshold;
         actuatorGroupMap[actuatorGroup].maxThreshold = maxThreshold;
-        return false;
+        return true;
     }
 
 };
