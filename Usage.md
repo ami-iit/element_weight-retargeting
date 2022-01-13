@@ -10,6 +10,8 @@ The module requires the following parameters, which can be passed via a `.ini` c
 
 An example of configuration file is [`WeightRetargetingElbows.ini`](conf/WeightRetargetingElbows.ini).
 
+**NOTE** setting a minimum threshold greater than the max one, will have the effect of using the joint torques in the negative direction. This can be helpful when wanting to retarget negative torques (see [conf/WeightRetargetingElbows.ini](conf/WeightRetargetingElbows.ini)) for an example.
+
 ## Running the module
 
 The following steps assume that installation files are visible by YARP (see [Configure the enviroment](Installation.md#configure-the-environment)).
@@ -55,6 +57,8 @@ An example of how to use the RPC:
 yarp rpc /WeightRetargeting/rpc:i
 setThresholds left_biceps 1.0 1.2
 ```
+
+
 
 The message `Response: [ok]` will be shown if the operation was successful.
 
