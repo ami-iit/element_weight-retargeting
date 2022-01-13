@@ -4,9 +4,9 @@ The module requires the following parameters, which can be passed via a `.ini` c
 
 | Name                | Description                                                                                                                                                                                                    | Example                                     |
 |---------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------|
-| robot               | Prefix of the yarp ports published by the robot                                                                                                                                                                | "/icub"                                     |
-| remote_boards       | List of the remote control boards that publish the data                                                                                                                                                        | ("/left_arm" "/right_arm")                  |
-| joints_to_actuators | List of joint-related parameters.   Each element of the list is a sublist: (\<joint-axis-name>  \<min-torque-thresh> \<max-torque-thresh> \<list-of-retargeted-actuators>)  | (( "l_elbow"  0.5 5.5 ( "13@1"   "13@2" ))) |
+| robot               | Prefix of the yarp ports published by the robot                                                                                                                                                                | "icub"                                     |
+| remote_boards       | List of the remote control boards that publish the data                                                                                                                                                        | ("left_arm" "right_arm")                  |
+| actuator_groups | List of parameters related to actuator groups.   Each element of the list is a sublist: (\<group-name> \<joint-axis-name>  \<min-torque-thresh> \<max-torque-thresh> \<list-of-retargeted-actuators>)  | (("left_biceps" "l_elbow"  0.5 5.5 ( "13@1"   "13@2" ))) |
 
 An example of configuration file is [`WeightRetargetingElbows.ini`](conf/WeightRetargetingElbows.ini).
 
@@ -38,22 +38,22 @@ The module provides with an RPC service accessible via the port `/WeightRetarget
 | Method            | Parameters      | Description                                             |
 |-----------------|-----------------|---------------------------------------------------------|
 | setMaxThreshold |                 | Sets the maximum joint torque threshold of a joint axis |
-|                 | 1: axis         | The name of the joint axis (e.g. "l_elbow")             |
+|                 | 1: actuatorGroup| The name of the group of actuators (e.g. "left_biceps")             |
 |                 | 2: value        | The value of the maximum threshold                      |
 |                 |          |             |
 | setMinThreshold |                 | Sets the maximum joint torque threshold of a joint axis |
-|                 | 1: axis         | The name of the joint axis (e.g. "l_elbow")             |
+|                 | 1: actuatorGroup| The name of the group of actuators (e.g. "left_biceps")             |
 |                 | 2: value        | The value of the minimum threshold                      |
 |                 |          |             |
 | setThresholds   |                 | Set the minimum and maximum joint torque thresholds     |
-|                 | 1: axis         | The name of the joint axis (e.g. "l_elbow")             |
+|                 | 1: actuatorGroup| The name of the group of actuators (e.g. "left_biceps")             |
 |                 | 2: minThreshold | The value of the minimum threshold                      |
 |                 | 3: maxThreshold | The value of the maximum threshold                      |
 
 An example of how to use the RPC:
 ```bash
 yarp rpc /WeightRetargeting/rpc:i
-setThresholds r_elbow 1.0 1.2
+setThresholds left_biceps 1.0 1.2
 ```
 
 The message `Response: [ok]` will be shown if the operation was successful.
@@ -62,8 +62,8 @@ An useful approach is to set the thresholds before connecting the ports mentione
 The module logs information about the commands sent and the values of the joint torques used, which can be used for this purpose. An example:
 
 ```bash
-[INFO] Sending  15  to  iFeelSuit::haptic::Node13@1  with joint torque  1.11062
-[INFO] Sending  15  to  iFeelSuit::haptic::Node13@2  with joint torque  1.11062
-[INFO] Sending  16  to  iFeelSuit::haptic::Node14@1  with joint torque  1.16912
-[INFO] Sending  16  to  iFeelSuit::haptic::Node14@2  with joint torque  1.16912
+[INFO] |WeightRetargetingModule| Sending 16 to group right_triceps with r_elbow torque 1.13051
+[INFO] |WeightRetargetingModule| Not actuating the group left_triceps , l_elbow torque is 1.2205
+[INFO] |WeightRetargetingModule| Sending 15 to group right_triceps with r_elbow torque 1.12559
+[INFO] |WeightRetargetingModule| Not actuating the group left_triceps , l_elbow torque is 1.2205
 ```
