@@ -1,0 +1,26 @@
+<application>
+
+  <name>iFeelSuitWeightRetargeting</name>
+  <description>An application for running the weight retargeting application using iFeelSuit</description>
+
+  <var name="output_port">/WeightRetargeting/output:o</var>
+  <var name="actuator_input_port">/iFeelSuit/WearableActuatorsCommand/input:i</var>
+
+  <module>
+    <name>WeightRetargetingModule</name>
+    <parameters>--from WeightRetargetingElbows.ini</parameters>
+    <environment>YARP_FORWARD_LOG_ENABLE=1</environment>
+    <description>Run weight retargeting application</description>
+    <node>localhost</node>
+    <tag>WeightRetargetingModule</tag>
+  </module>
+
+
+  <connection>
+    <from>${output_port}</from>
+    <to>${actuator_input_port}</to>
+    <protocol>udp</protocol>
+  </connection>
+
+
+</application>
