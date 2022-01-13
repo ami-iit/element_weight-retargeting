@@ -36,7 +36,7 @@ public:
 
     std::vector<std::string> remoteControlBoards;
     std::vector<std::string> jointNames;
-    std::unordered_map<std::string,ActuatorGroupInfo> actuatorGroupInfos; 
+    std::unordered_map<std::string,ActuatorGroupInfo> actuatorGroupMap; 
 
     std::vector<double> jointTorques;
 
@@ -69,7 +69,7 @@ public:
     {
         iTorqueControl->getTorques(jointTorques.data());
 
-        for(auto const & pair : actuatorGroupInfos)
+        for(auto const & pair : actuatorGroupMap)
         {
             const ActuatorGroupInfo& actuatorGroupInfo = pair.second;
 
@@ -162,7 +162,7 @@ public:
             yarp::os::Bottle* groupInfoBottle = actuatorGroupsBottle->get(i).asList();
             // get actuator group name
             std::string groupName = groupInfoBottle->get(0).asString();
-            if(actuatorGroupInfos.find(groupName)!=actuatorGroupInfos.end())
+            if(actuatorGroupMap.find(groupName)!=actuatorGroupMap.end())
             {
                 yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Multiple definition of actuator group"<<groupName;
                 return false;
@@ -193,7 +193,7 @@ public:
             }
             
             // add group info to the map
-            actuatorGroupInfos[groupName] = groupInfo;
+            actuatorGroupMap[groupName] = groupInfo;
         }
 
         // configure the remapper
@@ -278,21 +278,31 @@ public:
         return true;
     }
 
-    bool setMaxThreshold(const std::string& axis, const double value) override
+    bool setMaxThreshold(const std::string& actuatorGroup, const double value) override
     {
-        //TODO
+        if(actuatorGroupMap.find(actuatorGroup)==actuatorGroupMap.end())
+            return false;
+
+        actuatorGroupMap[actuatorGroup].maxThreshold = value;
+        return true;
+    }
+
+    bool setMinThreshold(const std::string& actuatorGroup, const double value) override
+    {
+        if(actuatorGroupMap.find(actuatorGroup)==actuatorGroupMap.end())
+            return false;
+
+        actuatorGroupMap[actuatorGroup].minThreshold = value;
         return false;
     }
 
-    bool setMinThreshold(const std::string& axis, const double value) override
+    bool setThresholds(const std::string& actuatorGroup, const double minThreshold, const double maxThreshold) override
     {
-        //TODO
-        return false;
-    }
+        if(actuatorGroupMap.find(actuatorGroup)==actuatorGroupMap.end())
+            return false;
 
-    bool setThresholds(const std::string& axis, const double minThreshold, const double maxThreshold) override
-    {
-        //TODO
+        actuatorGroupMap[actuatorGroup].minThreshold = minThreshold;
+        actuatorGroupMap[actuatorGroup].maxThreshold = maxThreshold;
         return false;
     }
 
