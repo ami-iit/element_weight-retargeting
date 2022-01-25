@@ -28,6 +28,9 @@ public:
     };
 
     const std::string IFEEL_SUIT_ACTUATOR_PREFIX = "iFeelSuit::haptic::Node#";
+    
+    // Number of configuration parameters defining an actuator group
+    const int CONFIG_GROUP_SIZE = 5;
 
     double period = 0.02; //Default 50Hz
 
@@ -160,6 +163,13 @@ public:
         {
             ActuatorGroupInfo groupInfo;
             yarp::os::Bottle* groupInfoBottle = actuatorGroupsBottle->get(i).asList();
+
+            if(groupInfoBottle->size()!=CONFIG_GROUP_SIZE)
+            {
+                yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "The number of configuration parameter for group"<<i<<"is incorrect (must be"<<CONFIG_GROUP_SIZE<<")";
+                return false;
+            }
+
             // get actuator group name
             std::string groupName = groupInfoBottle->get(0).asString();
             if(actuatorGroupMap.find(groupName)!=actuatorGroupMap.end())
@@ -167,18 +177,28 @@ public:
                 yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Multiple definition of actuator group"<<groupName;
                 return false;
             }
+
             //get axis name
             std::string axisName = groupInfoBottle->get(1).asString();
+
             //get min threshold
             groupInfo.minThreshold = groupInfoBottle->get(2).asDouble();
+
             //get max threshold
             groupInfo.maxThreshold = groupInfoBottle->get(3).asDouble();
+
             //get list of actuators
+            yarp::os::Bottle* actuatorListBottle = groupInfoBottle->get(4).asList();
+            if(actuatorListBottle->size()==0)
+            {
+                yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "The actuators list of"<<groupName<<"is empty!";
+                return false;
+            }
+            for(int j = 0; j<actuatorListBottle->size(); j++) groupInfo.actuators.push_back(actuatorListBottle->get(j).asString());
+
+
             yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Added actuator group: name"<<groupName <<"| Joint axis"<<axisName
                                                       <<"| Min threshold"<< groupInfo.minThreshold << "| Max threshold"<< groupInfo.maxThreshold;
-            yarp::os::Bottle* actuatorListBottle = groupInfoBottle->get(4).asList();
-            std::vector<std::string> actuatorList = {};
-            for(int j = 0; j<actuatorListBottle->size(); j++) groupInfo.actuators.push_back(actuatorListBottle->get(j).asString());
 
             //add joint axis name to the list
             auto it = std::find(jointNames.begin(), jointNames.end(), axisName);
