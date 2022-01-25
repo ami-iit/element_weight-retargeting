@@ -94,7 +94,7 @@ public:
 
                     // Send haptic actuator command
                     // NOTE: Use strict flag true for writing all the commands without dropping any old commands
-                    actuatorCommandPort.write(true);
+                    actuatorCommandPort.write(false);
                 }
             }
             else
