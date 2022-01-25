@@ -68,89 +68,15 @@ public:
         return actuationIntensity;
     }
 
-    bool updateModule() override
+    /**
+     * @brief Retrieve data related to actuators groups from configuration
+     * 
+     * @param rf the ResourceFinder instance
+     * @return true if the reading was successfull
+     * @return false otherwise
+     */
+    bool readActuatorsGroups(yarp::os::ResourceFinder &rf)
     {
-        iTorqueControl->getTorques(jointTorques.data());
-
-        for(auto const & pair : actuatorGroupMap)
-        {
-            const ActuatorGroupInfo& actuatorGroupInfo = pair.second;
-
-            double actuationIntensity = computeActuationIntensity(jointTorques[actuatorGroupInfo.jointIdx], actuatorGroupInfo.minThreshold, actuatorGroupInfo.maxThreshold);
-
-            if(actuationIntensity>0)
-            {
-                yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Sending"<< actuationIntensity << "to group" << pair.first<< "with"<<jointNames[actuatorGroupInfo.jointIdx]<<"torque"<< jointTorques[actuatorGroupInfo.jointIdx];
-                //send the haptic command to all the related actuators
-                for(const std::string& actuator : actuatorGroupInfo.actuators)
-                { 
-                    wearable::msg::WearableActuatorCommand& wearableActuatorCommand = actuatorCommandPort.prepare();
-
-                    wearableActuatorCommand.value = actuationIntensity;
-                    wearableActuatorCommand.info.name = IFEEL_SUIT_ACTUATOR_PREFIX+actuator;;
-                    wearableActuatorCommand.info.type = wearable::msg::ActuatorType::HAPTIC;
-                    wearableActuatorCommand.info.status = wearable::msg::ActuatorStatus::OK;
-                    wearableActuatorCommand.duration = 0;
-
-                    // Send haptic actuator command
-                    // NOTE: Use strict flag true for writing all the commands without dropping any old commands
-                    actuatorCommandPort.write(false);
-                }
-            }
-            else
-            {
-                yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Not actuating the group" << pair.first << ","<<jointNames[actuatorGroupInfo.jointIdx]<<"torque is"<< jointTorques[actuatorGroupInfo.jointIdx];
-            }
-
-        }
-
-        return true;
-    }
-
-    bool configure(yarp::os::ResourceFinder &rf) override
-    {
-        bool result = true;
-
-        std::string robotName = rf.find("robot").asString();
-        if(robotName.empty())
-        {
-            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter: robot";
-            return false;
-        } else if (robotName[0]!='/')
-        {
-            robotName = "/"+robotName;
-        }
-
-        if(!rf.check("period"))
-        {
-            yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter period, using default value" << period;
-        } else 
-        {
-            period = rf.find("period").asDouble();
-            yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Found parameter period:" << period;
-        }
-
-        yarp::os::Bottle* remoteBoardsBottle = rf.find("remote_boards").asList();
-        
-        // remote control boards 
-        if(remoteBoardsBottle==nullptr)
-        {
-            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter: remote_boards";
-            return false;
-        }
-
-        yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "remote_boards OK";
-        for(int i=0;i<remoteBoardsBottle->size();i++)
-        {
-            std::string remoteBoard = remoteBoardsBottle->get(i).asString();
-
-            yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Added remote control board:" << remoteBoard;
-
-            if(remoteBoard[0]!='/') remoteBoard = "/"+remoteBoard;
-            remoteControlBoards.push_back(remoteBoard);
-        } 
-        
-        // Read information about the actuator groups
         yarp::os::Bottle* actuatorGroupsBottle = rf.find("actuator_groups").asList();
         if(actuatorGroupsBottle==nullptr)
         {
@@ -194,8 +120,9 @@ public:
                 yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "The actuators list of"<<groupName<<"is empty!";
                 return false;
             }
-            for(int j = 0; j<actuatorListBottle->size(); j++) groupInfo.actuators.push_back(actuatorListBottle->get(j).asString());
 
+            for(int j = 0; j<actuatorListBottle->size(); j++) 
+                groupInfo.actuators.push_back(actuatorListBottle->get(j).asString());
 
             yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Added actuator group: name"<<groupName <<"| Joint axis"<<axisName
                                                       <<"| Min threshold"<< groupInfo.minThreshold << "| Max threshold"<< groupInfo.maxThreshold;
@@ -215,6 +142,97 @@ public:
             // add group info to the map
             actuatorGroupMap[groupName] = groupInfo;
         }
+        
+        return true;
+    }
+
+    bool updateModule() override
+    {
+        iTorqueControl->getTorques(jointTorques.data());
+
+        for(auto const & pair : actuatorGroupMap)
+        {
+            const ActuatorGroupInfo& actuatorGroupInfo = pair.second;
+
+            double actuationIntensity = computeActuationIntensity(jointTorques[actuatorGroupInfo.jointIdx], actuatorGroupInfo.minThreshold, actuatorGroupInfo.maxThreshold);
+
+            if(actuationIntensity>0)
+            {
+                yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Sending"<< actuationIntensity << "to group" << pair.first<< "with"<<jointNames[actuatorGroupInfo.jointIdx]<<"torque"<< jointTorques[actuatorGroupInfo.jointIdx];
+                //send the haptic command to all the related actuators
+                for(const std::string& actuator : actuatorGroupInfo.actuators)
+                { 
+                    wearable::msg::WearableActuatorCommand& wearableActuatorCommand = actuatorCommandPort.prepare();
+
+                    wearableActuatorCommand.value = actuationIntensity;
+                    wearableActuatorCommand.info.name = IFEEL_SUIT_ACTUATOR_PREFIX+actuator;;
+                    wearableActuatorCommand.info.type = wearable::msg::ActuatorType::HAPTIC;
+                    wearableActuatorCommand.info.status = wearable::msg::ActuatorStatus::OK;
+                    wearableActuatorCommand.duration = 0;
+
+                    // Send haptic actuator command
+                    // NOTE: Use strict flag true for writing all the commands without dropping any old commands
+                    actuatorCommandPort.write(false);
+                }
+            }
+            else
+            {
+                yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Not actuating the group" << pair.first << ","<<jointNames[actuatorGroupInfo.jointIdx]<<"torque is"<< jointTorques[actuatorGroupInfo.jointIdx];
+            }
+
+        }
+
+        return true;
+    }
+
+    bool configure(yarp::os::ResourceFinder &rf) override
+    {
+        bool result = true;
+
+        // read robot name
+        std::string robotName = rf.find("robot").asString();
+        if(robotName.empty())
+        {
+            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter: robot";
+            return false;
+        } else if (robotName[0]!='/')
+        {
+            robotName = "/"+robotName;
+        }
+
+        // read period param
+        if(!rf.check("period"))
+        {
+            yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter period, using default value" << period;
+        } else 
+        {
+            period = rf.find("period").asDouble();
+            yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Found parameter period:" << period;
+        }
+
+        yarp::os::Bottle* remoteBoardsBottle = rf.find("remote_boards").asList();
+        
+        // remote control boards 
+        if(remoteBoardsBottle==nullptr)
+        {
+            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter: remote_boards";
+            return false;
+        }
+
+        yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "remote_boards OK";
+        for(int i=0;i<remoteBoardsBottle->size();i++)
+        {
+            std::string remoteBoard = remoteBoardsBottle->get(i).asString();
+
+            yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Added remote control board:" << remoteBoard;
+
+            if(remoteBoard[0]!='/') remoteBoard = "/"+remoteBoard;
+            remoteControlBoards.push_back(remoteBoard);
+        } 
+        
+        // Read information about the actuator groups
+        if(!readActuatorsGroups(rf))
+            return false;
 
         // configure the remapper
         yarp::os::Property propRemapper;
