@@ -33,7 +33,17 @@ public:
 
     bool updateModule() override
     {
-        //TODO
+        //TODO read z-axis force
+        double zForce = 0.0;
+
+        //TODO calculate weight
+        double weight = 0.0;
+
+        //write to port
+        yarp::os::Bottle& weightLabelMessage = outPort.prepare();
+        weightLabelMessage.addString(std::to_string(weight));
+        outPort.write(false);
+
         return true;
     }
 
