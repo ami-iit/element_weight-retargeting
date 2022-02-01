@@ -11,9 +11,9 @@
 #include <thrift/WeightRetargetingService.h>
 #include <thrift/WearableActuatorCommand.h>
 
-#define WEIGHT_RETARGETING_MAX_INTENSITY 127
+#include "WeightRetargetingLogComponent.h"
 
-YARP_LOG_COMPONENT(WEIGHT_RETARGETING_LOG_COMPONENT, "WeightRetargetingModule")
+#define WEIGHT_RETARGETING_MAX_INTENSITY 127
 
 class WeightRetargetingModule : public yarp::os::RFModule, WeightRetargetingService
 {
@@ -77,6 +77,7 @@ public:
      */
     bool readActuatorsGroups(yarp::os::ResourceFinder &rf)
     {
+
         yarp::os::Bottle* actuatorGroupsBottle = rf.find("actuator_groups").asList();
         if(actuatorGroupsBottle==nullptr)
         {
