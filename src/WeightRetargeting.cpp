@@ -24,6 +24,7 @@ public:
         int jointIdx;
         double minThreshold;
         double maxThreshold;
+        double offset;
         std::vector<std::string> actuators;
     };
 
@@ -148,6 +149,7 @@ public:
             }
             
             // add group info to the map
+            groupInfo.offset = 0.0;
             actuatorGroupMap[groupName] = groupInfo;
         }
         
@@ -162,7 +164,7 @@ public:
         {
             const ActuatorGroupInfo& actuatorGroupInfo = pair.second;
 
-            double actuationIntensity = computeActuationIntensity(jointTorques[actuatorGroupInfo.jointIdx], actuatorGroupInfo.minThreshold, actuatorGroupInfo.maxThreshold);
+            double actuationIntensity = computeActuationIntensity(jointTorques[actuatorGroupInfo.jointIdx] - actuatorGroupInfo.offset, actuatorGroupInfo.minThreshold, actuatorGroupInfo.maxThreshold);
 
             if(actuationIntensity>0)
             {
@@ -339,6 +341,30 @@ public:
 
         actuatorGroupMap[actuatorGroup].minThreshold = minThreshold;
         actuatorGroupMap[actuatorGroup].maxThreshold = maxThreshold;
+        return true;
+    }
+
+    void removeSingleOffset(const std::string& actuatorGroup)
+    {
+        ActuatorGroupInfo& groupInfo = actuatorGroupMap[actuatorGroup];
+        actuatorGroupMap[actuatorGroup].offset = groupInfo.minThreshold - jointTorques[groupInfo.jointIdx];
+    }
+
+    bool removeOffset(const std::string& actuatorGroup) override
+    {
+        if(actuatorGroup=="all")
+        {
+            for(auto const & pair : actuatorGroupMap)
+                removeSingleOffset(pair.first);
+        }
+        else
+        {
+            if(actuatorGroupMap.find(actuatorGroup)==actuatorGroupMap.end())
+                return false;
+            
+            removeSingleOffset(actuatorGroup);
+        }
+
         return true;
     }
 
