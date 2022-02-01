@@ -101,7 +101,12 @@ public:
 
             // get actuator group name
             std::string groupName = groupInfoBottle->get(0).asString();
-            if(actuatorGroupMap.find(groupName)!=actuatorGroupMap.end())
+            if(groupName=="all")
+            {
+                yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "All is a reserved name for actuator groups";
+                return false;
+            }
+            else if(actuatorGroupMap.find(groupName)!=actuatorGroupMap.end())
             {
                 yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Multiple definition of actuator group"<<groupName;
                 return false;
