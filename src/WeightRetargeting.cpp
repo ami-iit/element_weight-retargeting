@@ -1,4 +1,6 @@
 #include <algorithm>
+#include <unordered_map>
+
 #include <yarp/os/Network.h>
 #include <yarp/os/RFModule.h>
 #include <yarp/os/LogStream.h>
@@ -7,7 +9,6 @@
 #include <yarp/dev/ITorqueControl.h>
 
 #include <thrift/WeightRetargetingService.h>
-
 #include <thrift/WearableActuatorCommand.h>
 
 #define WEIGHT_RETARGETING_MAX_INTENSITY 127
@@ -18,7 +19,18 @@ class WeightRetargetingModule : public yarp::os::RFModule, WeightRetargetingServ
 {
 public:
 
+    struct ActuatorGroupInfo
+    {
+        int jointIdx;
+        double minThreshold;
+        double maxThreshold;
+        std::vector<std::string> actuators;
+    };
+
     const std::string IFEEL_SUIT_ACTUATOR_PREFIX = "iFeelSuit::haptic::Node#";
+    
+    // Number of configuration parameters defining an actuator group
+    const int CONFIG_GROUP_SIZE = 5;
 
     double period = 0.02; //Default 50Hz
 
@@ -27,9 +39,8 @@ public:
 
     std::vector<std::string> remoteControlBoards;
     std::vector<std::string> jointNames;
-    std::vector<std::vector<std::string>> jointAxesToActuators;
-    std::vector<double> jointTorquesMinThresholds;
-    std::vector<double> jointTorquesMaxThresholds;
+    std::unordered_map<std::string,ActuatorGroupInfo> actuatorGroupMap; 
+
     std::vector<double> jointTorques;
 
     // Haptic command
@@ -57,18 +68,99 @@ public:
         return actuationIntensity;
     }
 
+    /**
+     * @brief Retrieve data related to actuators groups from configuration
+     * 
+     * @param rf the ResourceFinder instance
+     * @return true if the reading was successfull
+     * @return false otherwise
+     */
+    bool readActuatorsGroups(yarp::os::ResourceFinder &rf)
+    {
+        yarp::os::Bottle* actuatorGroupsBottle = rf.find("actuator_groups").asList();
+        if(actuatorGroupsBottle==nullptr)
+        {
+            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter: actuator_groups";
+            return false;
+        }
+
+        yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "actuator_groups OK";
+        for(int i=0; i<actuatorGroupsBottle->size(); i++)
+        {
+            ActuatorGroupInfo groupInfo;
+            yarp::os::Bottle* groupInfoBottle = actuatorGroupsBottle->get(i).asList();
+
+            if(groupInfoBottle->size()!=CONFIG_GROUP_SIZE)
+            {
+                yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "The number of configuration parameter for group"<<i<<"is incorrect (must be"<<CONFIG_GROUP_SIZE<<")";
+                return false;
+            }
+
+            // get actuator group name
+            std::string groupName = groupInfoBottle->get(0).asString();
+            if(actuatorGroupMap.find(groupName)!=actuatorGroupMap.end())
+            {
+                yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Multiple definition of actuator group"<<groupName;
+                return false;
+            }
+
+            //get axis name
+            std::string axisName = groupInfoBottle->get(1).asString();
+
+            //get min threshold
+            groupInfo.minThreshold = groupInfoBottle->get(2).asDouble();
+
+            //get max threshold
+            groupInfo.maxThreshold = groupInfoBottle->get(3).asDouble();
+
+            //get list of actuators
+            yarp::os::Bottle* actuatorListBottle = groupInfoBottle->get(4).asList();
+            if(actuatorListBottle->size()==0)
+            {
+                yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "The actuators list of"<<groupName<<"is empty!";
+                return false;
+            }
+
+            for(int j = 0; j<actuatorListBottle->size(); j++) 
+                groupInfo.actuators.push_back(actuatorListBottle->get(j).asString());
+
+            yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Added actuator group: name"<<groupName <<"| Joint axis"<<axisName
+                                                      <<"| Min threshold"<< groupInfo.minThreshold << "| Max threshold"<< groupInfo.maxThreshold;
+
+            //add joint axis name to the list
+            auto it = std::find(jointNames.begin(), jointNames.end(), axisName);
+            if(it==jointNames.end())
+            {
+                groupInfo.jointIdx = jointNames.size();
+                jointNames.push_back(axisName);
+            }
+            else
+            {
+                groupInfo.jointIdx = it - jointNames.begin();
+            }
+            
+            // add group info to the map
+            actuatorGroupMap[groupName] = groupInfo;
+        }
+        
+        return true;
+    }
+
     bool updateModule() override
     {
         iTorqueControl->getTorques(jointTorques.data());
 
-        for(int i = 0; i<jointNames.size(); i++)
+        for(auto const & pair : actuatorGroupMap)
         {
-            double actuationIntensity = computeActuationIntensity(jointTorques[i], jointTorquesMinThresholds[i], jointTorquesMaxThresholds[i]);
+            const ActuatorGroupInfo& actuatorGroupInfo = pair.second;
+
+            double actuationIntensity = computeActuationIntensity(jointTorques[actuatorGroupInfo.jointIdx], actuatorGroupInfo.minThreshold, actuatorGroupInfo.maxThreshold);
 
             if(actuationIntensity>0)
             {
+                yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Sending"<< actuationIntensity << "to group" << pair.first<< "with"<<jointNames[actuatorGroupInfo.jointIdx]<<"torque"<< jointTorques[actuatorGroupInfo.jointIdx];
                 //send the haptic command to all the related actuators
-                for(std::string& actuator : jointAxesToActuators[i])
+                for(const std::string& actuator : actuatorGroupInfo.actuators)
                 { 
                     wearable::msg::WearableActuatorCommand& wearableActuatorCommand = actuatorCommandPort.prepare();
 
@@ -77,16 +169,14 @@ public:
                     wearableActuatorCommand.info.type = wearable::msg::ActuatorType::HAPTIC;
                     wearableActuatorCommand.info.status = wearable::msg::ActuatorStatus::OK;
                     wearableActuatorCommand.duration = 0;
-                    yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Sending"<< wearableActuatorCommand.value << "to" << wearableActuatorCommand.info.name << "with joint torque" << jointTorques[i];
 
                     // Send haptic actuator command
-                    // NOTE: Use strict flag true for writing all the commands without dropping any old commands
                     actuatorCommandPort.write(true);
                 }
             }
             else
             {
-                yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Not sending command for joint" << jointNames[i] << ", the value is"<< jointTorques[i];
+                yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Not actuating the group" << pair.first << ","<<jointNames[actuatorGroupInfo.jointIdx]<<"torque is"<< jointTorques[actuatorGroupInfo.jointIdx];
             }
 
         }
@@ -98,6 +188,7 @@ public:
     {
         bool result = true;
 
+        // read robot name
         std::string robotName = rf.find("robot").asString();
         if(robotName.empty())
         {
@@ -108,6 +199,7 @@ public:
             robotName = "/"+robotName;
         }
 
+        // read period param
         if(!rf.check("period"))
         {
             yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter period, using default value" << period;
@@ -137,37 +229,9 @@ public:
             remoteControlBoards.push_back(remoteBoard);
         } 
         
-        // information on joint axes and actuators
-        yarp::os::Bottle* jointToActuatorsBottle = rf.find("joints_to_actuators").asList();
-        if(jointToActuatorsBottle==nullptr)
-        {
-            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter: joints_to_actuators";
+        // Read information about the actuator groups
+        if(!readActuatorsGroups(rf))
             return false;
-        }
-
-        yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "joints_to_actuators OK";
-        for(int i=0; i<jointToActuatorsBottle->size(); i++)
-        {
-            yarp::os::Bottle* jointAxisInfo = jointToActuatorsBottle->get(i).asList(); 
-            
-            //get axis name
-            std::string axisName = jointAxisInfo->get(0).asString();
-            //get min threshold
-            double minThresh = jointAxisInfo->get(1).asDouble();
-            //get max threshold
-            double maxThresh = jointAxisInfo->get(2).asDouble();
-            //get list of actuators
-            yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << (axisName.empty() ? "Axis name error!" : "Added joint axis "+axisName)
-                    <<"| Min threshold"<< minThresh << "| Max threshold"<< maxThresh;
-            yarp::os::Bottle* actuatorListBottle = jointAxisInfo->get(3).asList();
-            std::vector<std::string> actuatorList = {};
-            for(int j = 0; j<actuatorListBottle->size(); j++) actuatorList.push_back(actuatorListBottle->get(j).asString());
-
-            jointNames.push_back(axisName);
-            jointAxesToActuators.push_back(actuatorList);
-            jointTorquesMinThresholds.push_back(minThresh);
-            jointTorquesMaxThresholds.push_back(maxThresh);
-        }
 
         // configure the remapper
         yarp::os::Property propRemapper;
@@ -251,50 +315,31 @@ public:
         return true;
     }
 
-    int findIndexOfAxis(const std::string& axis)
+    bool setMaxThreshold(const std::string& actuatorGroup, const double value) override
     {
-        for(int i=0;i<jointNames.size(); i++)
-            if(jointNames[i]==axis)
-                return i;
-
-        return -1;
-    }
-
-    bool setMaxThreshold(const std::string& axis, const double value) override
-    {
-        int index = findIndexOfAxis(axis);
-
-        if(index==-1 || jointTorquesMinThresholds[index]>value)
+        if(actuatorGroupMap.find(actuatorGroup)==actuatorGroupMap.end())
             return false;
 
-        jointTorquesMaxThresholds[index] = value;
+        actuatorGroupMap[actuatorGroup].maxThreshold = value;
         return true;
     }
 
-    bool setMinThreshold(const std::string& axis, const double value) override
+    bool setMinThreshold(const std::string& actuatorGroup, const double value) override
     {
-        int index = findIndexOfAxis(axis);
-
-        if(index==-1 || jointTorquesMaxThresholds[index]<value)
+        if(actuatorGroupMap.find(actuatorGroup)==actuatorGroupMap.end())
             return false;
 
-        jointTorquesMinThresholds[index] = value;
+        actuatorGroupMap[actuatorGroup].minThreshold = value;
         return true;
     }
 
-    bool setThresholds(const std::string& axis, const double minThreshold, const double maxThreshold) override
+    bool setThresholds(const std::string& actuatorGroup, const double minThreshold, const double maxThreshold) override
     {
-        if(minThreshold>=maxThreshold)
-            return false;
-        
-        int index = findIndexOfAxis(axis);
-
-        if(index==-1)
+        if(actuatorGroupMap.find(actuatorGroup)==actuatorGroupMap.end())
             return false;
 
-        jointTorquesMinThresholds[index] = minThreshold;
-        jointTorquesMaxThresholds[index] = maxThreshold;
-        
+        actuatorGroupMap[actuatorGroup].minThreshold = minThreshold;
+        actuatorGroupMap[actuatorGroup].maxThreshold = maxThreshold;
         return true;
     }
 
