@@ -51,6 +51,7 @@ public:
 
     // Haptic command
     yarp::os::BufferedPort<wearable::msg::WearableActuatorCommand> actuatorCommandPort;
+    double minIntensity = 0.0;
 
     // RPC
     yarp::os::Port rpcPort;
@@ -170,7 +171,7 @@ public:
 
             double actuationIntensity = computeActuationIntensity(jointTorques[actuatorGroupInfo.jointIdx] - actuatorGroupInfo.offset, actuatorGroupInfo.minThreshold, actuatorGroupInfo.maxThreshold);
 
-            if(actuationIntensity>0)
+            if(actuationIntensity>minIntensity)
             {
                 //send the haptic command to all the related actuators
                 for(const std::string& actuator : actuatorGroupInfo.actuators)
@@ -216,6 +217,16 @@ public:
         {
             period = rf.find("period").asFloat64();
             yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter period:" << period;
+        }
+
+        // read min_actuation param
+        if(!rf.check("min_intensity"))
+        {
+            yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter min_intensity, using default value" << minIntensity;
+        } else 
+        {
+            minIntensity = rf.find("min_intensity").asFloat64();
+            yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Found parameter min_intensity:" << minIntensity;
         }
 
         yarp::os::Bottle* remoteBoardsBottle = rf.find("remote_boards").asList();
