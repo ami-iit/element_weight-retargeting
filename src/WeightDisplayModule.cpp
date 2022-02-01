@@ -21,7 +21,9 @@ public:
     yarp::os::BufferedPort<yarp::os::Bottle> outPort;
 
     // RPC
-    std::string labelRPCPortName;
+    std::string labelRPCServerPortName;
+    std::string labelRPCClientPortName;
+    int labelID = 0;
     yarp::os::RpcClient rpcClient;
 
     double getPeriod() override
@@ -63,12 +65,23 @@ public:
         // read rpc_port param
         if(!rf.check("rpc_port"))
         {
-            labelRPCPortName = std::string("");
+            labelRPCServerPortName = std::string();
             yCWarning(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter rpc_port, the RPC to enable the label will not be used";
         } else 
         {
-            labelRPCPortName = rf.find("rpc_port").asString();
-            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Found parameter rpc_port:" << labelRPCPortName;
+            labelRPCServerPortName = rf.find("rpc_port").asString();
+            labelRPCClientPortName = portPrefix+labelRPCServerPortName;
+            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Found parameter rpc_port:" << labelRPCServerPortName;
+
+            if(!rf.check("label_id"))
+            {
+                yCWarning(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter label_id, using default value:" << labelID;
+            }
+            else
+            {
+                labelID = rf.find("label_id").asInt();
+                yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Found parameter label_id:" << labelID;
+            }
         }
 
         return true;
@@ -76,13 +89,51 @@ public:
 
     bool configure(yarp::os::ResourceFinder &rf) override
     {
+        // read parameters
         if(!loadParams(rf))
         {
             yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Error in parameter retrieval, stopping";
             return false;
         }
 
-        //TODO open ports
+        // open output port
+        if(!outPort.open(outPortName))
+        {
+            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Unable to open output port: "<< outPortName;
+            return false;
+        }
+        else
+        {
+            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Opened output port: "<< outPortName;
+        }
+
+        // connect to the RPC port
+        if(labelRPCServerPortName.empty())
+        {
+            if(!rpcClient.open(labelRPCClientPortName))
+            {
+                yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Unable to open RPC client port: "<< labelRPCClientPortName;
+                return false;
+            }
+
+            if(!yarp::os::Network::connect(labelRPCClientPortName, labelRPCServerPortName))
+            {
+                yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Unable to connect to RPC server port: "<< labelRPCServerPortName;
+                return false;
+            }
+
+            yarp::os::Bottle command;
+            yarp::os::Bottle response;
+            command.addInt32(labelID);
+
+            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Sending message to the label RPC: " << command.toString();
+            rpcClient.write(command, response);
+            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Response from RPC: " << response.toString();
+
+            // close the RPC port
+            rpcClient.close();
+            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Closing RPC client port: " << labelRPCClientPortName;
+        }
 
         return true;
     }
