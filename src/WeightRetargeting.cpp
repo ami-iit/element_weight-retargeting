@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <unordered_map>
+#include <mutex>
 
 #include <yarp/os/Network.h>
 #include <yarp/os/RFModule.h>
@@ -36,6 +37,8 @@ public:
     const int CONFIG_GROUP_SIZE = 5;
 
     double period = 0.02; //Default 50Hz
+
+    std::mutex mutex;
 
     yarp::dev::PolyDriver remappedControlBoard;
     yarp::dev::ITorqueControl* iTorqueControl{ nullptr };
@@ -158,6 +161,7 @@ public:
 
     bool updateModule() override
     {
+        std::lock_guard<std::mutex> guard(mutex);
         iTorqueControl->getTorques(jointTorques.data());
 
         for(auto const & pair : actuatorGroupMap)
@@ -318,6 +322,7 @@ public:
 
     bool setMaxThreshold(const std::string& actuatorGroup, const double value) override
     {
+        std::lock_guard<std::mutex> guard(mutex);
         if(actuatorGroupMap.find(actuatorGroup)==actuatorGroupMap.end())
             return false;
 
@@ -327,6 +332,7 @@ public:
 
     bool setMinThreshold(const std::string& actuatorGroup, const double value) override
     {
+        std::lock_guard<std::mutex> guard(mutex);
         if(actuatorGroupMap.find(actuatorGroup)==actuatorGroupMap.end())
             return false;
 
@@ -336,6 +342,7 @@ public:
 
     bool setThresholds(const std::string& actuatorGroup, const double minThreshold, const double maxThreshold) override
     {
+        std::lock_guard<std::mutex> guard(mutex);
         if(actuatorGroupMap.find(actuatorGroup)==actuatorGroupMap.end())
             return false;
 
@@ -352,6 +359,7 @@ public:
 
     bool removeOffset(const std::string& actuatorGroup) override
     {
+        std::lock_guard<std::mutex> guard(mutex);
         if(actuatorGroup=="all")
         {
             for(auto const & pair : actuatorGroupMap)
