@@ -171,8 +171,7 @@ public:
                     wearableActuatorCommand.duration = 0;
 
                     // Send haptic actuator command
-                    // NOTE: Use strict flag true for writing all the commands without dropping any old commands
-                    actuatorCommandPort.write(false);
+                    actuatorCommandPort.write(true);
                 }
             }
             else
