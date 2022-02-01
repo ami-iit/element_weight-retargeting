@@ -55,7 +55,7 @@ public:
             yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter period, using default value" << period;
         } else 
         {
-            period = rf.find("period").asDouble();
+            period = rf.find("period").asFloat64();
             yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Found parameter period:" << period;
         }
 
@@ -89,7 +89,7 @@ public:
             }
             else
             {
-                labelID = rf.find("label_id").asInt();
+                labelID = rf.find("label_id").asInt32();
                 yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Found parameter label_id:" << labelID;
             }
         }
@@ -109,26 +109,26 @@ public:
         // open output port
         if(!outPort.open(outPortName))
         {
-            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Unable to open output port: "<< outPortName;
+            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Unable to open output port:"<< outPortName;
             return false;
         }
         else
         {
-            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Opened output port: "<< outPortName;
+            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Opened output port:"<< outPortName;
         }
 
         // connect to the RPC port
-        if(labelRPCServerPortName.empty())
+        if(!labelRPCServerPortName.empty())
         {
             if(!rpcClient.open(labelRPCClientPortName))
             {
-                yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Unable to open RPC client port: "<< labelRPCClientPortName;
+                yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Unable to open RPC client port:"<< labelRPCClientPortName;
                 return false;
             }
 
             if(!yarp::os::Network::connect(labelRPCClientPortName, labelRPCServerPortName))
             {
-                yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Unable to connect to RPC server port: "<< labelRPCServerPortName;
+                yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Unable to connect to RPC server port:"<< labelRPCServerPortName;
                 return false;
             }
 
@@ -136,13 +136,13 @@ public:
             yarp::os::Bottle response;
             command.addInt32(labelID);
 
-            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Sending message to the label RPC: " << command.toString();
+            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Sending message to the label RPC:" << command.toString();
             rpcClient.write(command, response);
-            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Response from RPC: " << response.toString();
+            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Response from RPC:" << response.toString();
 
             // close the RPC port
             rpcClient.close();
-            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Closing RPC client port: " << labelRPCClientPortName;
+            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Closing RPC client port:" << labelRPCClientPortName;
         }
 
         return true;
