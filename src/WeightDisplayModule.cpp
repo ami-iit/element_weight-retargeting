@@ -1,11 +1,13 @@
 #include <algorithm>
 #include <unordered_map>
+#include <memory>
 
 #include <yarp/os/Network.h>
 #include <yarp/os/RFModule.h>
 #include <yarp/os/LogStream.h>
 #include <yarp/os/RpcClient.h>
 #include <yarp/os/BufferedPort.h>
+#include <yarp/sig/Vector.h>
 
 #include "WeightRetargetingLogComponent.h"
 
@@ -14,6 +16,10 @@ class WeightDisplayModule : public yarp::os::RFModule
 public:
 
     double period = 0.02; //Default 50Hz
+
+    // input port
+    std::vector<std::string> inputPortNames;
+    std::vector<std::unique_ptr<yarp::os::BufferedPort<yarp::sig::Vector>>> inputPorts;
 
     // output port
     std::string portPrefix = "/WeightDisplay";
@@ -69,7 +75,28 @@ public:
             yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Found parameter port_prefix:" << portPrefix;
         }
 
-        outPortName = portPrefix+"/out";
+        // read input port names
+        yarp::os::Bottle* inputPortNamesBottle = rf.find("input_port_names").asList();
+        if(inputPortNamesBottle == nullptr)
+        {
+            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter input_port_names!";
+            return false;
+        }
+        else if(inputPortNamesBottle->size()==0)
+        {
+            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Parameter input_port_names is empty!";
+            return false;
+        }
+        
+        for(int i=0; i<inputPortNamesBottle->size(); i++)
+        {
+            std::string portName = inputPortNamesBottle->get(i).asString();
+            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Found input port name:"<<portName;
+            inputPortNames.push_back(portPrefix+"/"+portName+":i");
+        }
+
+        // set output port name
+        outPortName = portPrefix+"/out:o";
 
 
         // read rpc_port param
@@ -106,15 +133,24 @@ public:
             return false;
         }
 
+        // open input ports
+        int inputPortIdx = 0;
+        inputPorts.reserve(inputPortNames.size());
+        for(const std::string& portName : inputPortNames)
+        {
+            inputPorts.push_back(std::make_unique<yarp::os::BufferedPort<yarp::sig::Vector>>());
+            if(!inputPorts[inputPortIdx++]->open(portName))
+            {
+                yCError(WEIGHT_RETARGETING_LOG_COMPONENT)<<"Unable to open input port:"<< portName;
+                return false;
+            }
+        }
+
         // open output port
         if(!outPort.open(outPortName))
         {
             yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Unable to open output port:"<< outPortName;
             return false;
-        }
-        else
-        {
-            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Opened output port:"<< outPortName;
         }
 
         // connect to the RPC port
@@ -156,6 +192,11 @@ public:
 
     bool close() override
     {
+        // close input ports
+        for(auto & port : inputPorts)
+            port->close();
+            
+        // close output port
         outPort.close();
         return true;
     }
