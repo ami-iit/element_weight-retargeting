@@ -51,10 +51,13 @@ public:
                 yCWarning(WEIGHT_RETARGETING_LOG_COMPONENT)<<"Missing wrench from"<<port->getName();
                 continue;
             }
-            zForce += abs((*wrench)[2]);
+
+            // sum only forces towards the ground
+            if((*wrench)[2]<0)
+                zForce += -(*wrench)[2];
         }
 
-        //TODO calculate weight
+        // calculate weight
         double weight = zForce/GRAVITY_ACCELERATION;
 
         //write to port
