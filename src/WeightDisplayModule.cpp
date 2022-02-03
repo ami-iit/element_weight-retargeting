@@ -15,6 +15,8 @@ class WeightDisplayModule : public yarp::os::RFModule
 {
 public:
 
+    const double GRAVITY_ACCELERATION = 9.81;
+
     double period = 0.02; //Default 50Hz
 
     // input port
@@ -39,11 +41,21 @@ public:
 
     bool updateModule() override
     {
-        //TODO read z-axis force
+        // sum z-axis forces
         double zForce = 0.0;
+        for(auto const & port : inputPorts)
+        {
+            yarp::sig::Vector* wrench = port->read(false);
+            if(wrench==nullptr)
+            {
+                yCWarning(WEIGHT_RETARGETING_LOG_COMPONENT)<<"Missing wrench from"<<port->getName();
+                continue;
+            }
+            zForce += abs((*wrench)[2]);
+        }
 
         //TODO calculate weight
-        double weight = 0.0;
+        double weight = zForce/GRAVITY_ACCELERATION;
 
         //write to port
         yarp::os::Bottle& weightLabelMessage = outPort.prepare();
@@ -195,7 +207,7 @@ public:
         // close input ports
         for(auto & port : inputPorts)
             port->close();
-            
+
         // close output port
         outPort.close();
         return true;
