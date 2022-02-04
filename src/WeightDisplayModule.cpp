@@ -19,6 +19,8 @@ public:
 
     double period = 0.02; //Default 50Hz
 
+    double minWeight = 0.0; // minimum weight to be displayed
+
     // input port
     std::vector<std::string> inputPortNames;
     std::vector<std::unique_ptr<yarp::os::BufferedPort<yarp::sig::Vector>>> inputPorts;
@@ -46,14 +48,7 @@ public:
         for(auto const & port : inputPorts)
         {
             yarp::sig::Vector* wrench = port->read(false);
-            if(wrench==nullptr)
-            {
-                yCWarning(WEIGHT_RETARGETING_LOG_COMPONENT)<<"Missing wrench from"<<port->getName();
-                continue;
-            }
-
-            // sum only forces towards the ground
-            if((*wrench)[2]<0)
+            if(wrench!=nullptr && (*wrench)[2]<0)
                 zForce += -(*wrench)[2];
         }
 
@@ -61,9 +56,12 @@ public:
         double weight = zForce/GRAVITY_ACCELERATION;
 
         //write to port
-        yarp::os::Bottle& weightLabelMessage = outPort.prepare();
-        weightLabelMessage.addString(std::to_string(weight));
-        outPort.write(false);
+        if(weight>=minWeight)
+        {
+            yarp::os::Bottle& weightLabelMessage = outPort.prepare();
+            weightLabelMessage.addString(std::to_string(weight));
+            outPort.write(false);
+        }
 
         return true;
     }
@@ -134,6 +132,16 @@ public:
                 labelID = rf.find("label_id").asInt32();
                 yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Found parameter label_id:" << labelID;
             }
+        }
+
+        // read min_weight
+        if(!rf.check("min_weight"))
+        {
+            yCWarning(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter min_weight, using default value:"<<minWeight;
+        } else
+        {
+            minWeight = rf.find("min_weight").asFloat64();
+            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Found parameter min_weight:" << minWeight;
         }
 
         return true;
