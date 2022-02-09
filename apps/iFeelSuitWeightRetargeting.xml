@@ -6,6 +6,8 @@
   <var name="output_port">/WeightRetargeting/output:o</var>
   <var name="actuator_input_port">/iFeelSuit/WearableActuatorsCommand/input:i</var>
 
+  <var name="openxr_label">1</var>
+
   <module>
     <name>WeightRetargetingModule</name>
     <parameters>--from WeightRetargeting_iCub3.ini</parameters>
@@ -17,7 +19,7 @@
 
   <module>
     <name>WeightDisplayModule</name>
-    <parameters>--from WeightDisplay.ini</parameters>
+    <parameters>--from WeightDisplay.ini --label_id ${openxr_label}</parameters>
     <environment>YARP_FORWARD_LOG_ENABLE=1</environment>
     <description>Display the weight of the object on OpenXR</description>
     <node>localhost</node>
@@ -40,6 +42,12 @@
   <connection>
     <from>/wholeBodyDynamics/left_arm/cartesianEndEffectorWrench:o</from>
     <to>/WeightDisplay/left_hand:i</to>
+    <protocol>fast_tcp</protocol>
+  </connection>
+
+  <connection>
+    <from>/WeightDisplay/out:o</from>
+    <to>/joypadDevice/Oculus/label_${openxr_label}</to>
     <protocol>fast_tcp</protocol>
   </connection>
 
