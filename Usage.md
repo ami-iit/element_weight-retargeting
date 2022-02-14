@@ -1,3 +1,4 @@
+# WeightRetargetingModule
 ## Configuration file
 
 The module requires the following parameters, which can be passed via a `.ini` configuration file:
@@ -70,4 +71,37 @@ The module logs information about the commands sent and the values of the joint 
 [INFO] |WeightRetargetingModule| Not actuating the group left_triceps , l_elbow torque is 1.2205
 [INFO] |WeightRetargetingModule| Sending 15 to group right_triceps with r_elbow torque 1.12559
 [INFO] |WeightRetargetingModule| Not actuating the group left_triceps , l_elbow torque is 1.2205
+```
+
+# WeightDisplayModule
+
+## Configuration file
+
+| Name                | Description  | Example | Required |
+|---------------------|-----------------------------------------------------------------|---------------------------------------------|---|
+| period               | Working frequency of the module in seconds                                                                                                                                                                | 0.05                                     | :x: 
+| port_prefix       | Prefix of the YARP ports opened by the module                                                                                                                                                        | /WeightDysplayModule                  | :x:|
+| min_weight | Minimum weight to be displayed in kilograms | 0.1 |:x: |
+| input_port_names| Names of the ports opened by the module to read the end-effector wrenches | (left_hand right_hand) | :heavy_check_mark:|
+| rpc_port | Name of the rpc port to enable the text label related to the weight | /joypadDevice/Oculus/rpc | :x: | 
+| label_id | Id of the weight text label | 0 | Required if rpc_port is specified |
+
+## Running the module
+
+The following steps assume that installation files are visible by YARP (see [Configure the enviroment](Installation.md#configure-the-environment)).
+
+The module can be run with the following command:
+
+```bash
+WeightDisplayModule --from WeightDisplay.ini
+```
+
+Alternatively, the module can be run via [`yarpmanager`](https://www.yarp.it/latest//yarpmanager.html) through the application [`iFeelSuitWeightRetargeting`](apps/iFeelSuitWeightRetargeting.xml).
+
+Once the module has started, it starts publishing the weight of objects being held by the robot via the output port `<port_prefix>/out:o` as a text, assuming that the input ports have been connected to the ones where the corresponding wrenches are published.
+
+In order to let the weight be shown via the OpenXR module, connect the input port of the text label related to the weight to the output port of the WeightDisplayModule. 
+This can be done either via `yarpmanager` or via command-line:
+```bash
+yarp connect /WeightDisplay/out:o joypadDevice/Oculus/label_<label_ID>
 ```
