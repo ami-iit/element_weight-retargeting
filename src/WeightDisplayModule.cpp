@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <unordered_map>
 #include <memory>
+#include <iomanip>
 
 #include <yarp/os/Network.h>
 #include <yarp/os/RFModule.h>
@@ -16,6 +17,7 @@ class WeightDisplayModule : public yarp::os::RFModule
 public:
 
     const double GRAVITY_ACCELERATION = 9.81;
+    const int FRACTIONAL_DIGITS = 3; // Number of digits of the weight's fractional part  
 
     double period = 0.02; //Default 50Hz
 
@@ -58,8 +60,12 @@ public:
         //write to port
         if(weight>=minWeight)
         {
+            // use stringstream to fix number of fractional digits
+            std::ostringstream stream;
+            stream << std::fixed << std::setprecision(FRACTIONAL_DIGITS)<<weight;
+
             yarp::os::Bottle& weightLabelMessage = outPort.prepare();
-            weightLabelMessage.addString(std::to_string(weight));
+            weightLabelMessage.addString(stream.str());
             outPort.write(false);
         }
 
