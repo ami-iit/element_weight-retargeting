@@ -108,10 +108,10 @@ public:
             std::string axisName = groupInfoBottle->get(1).asString();
 
             //get min threshold
-            groupInfo.minThreshold = groupInfoBottle->get(2).asDouble();
+            groupInfo.minThreshold = groupInfoBottle->get(2).asFloat64();
 
             //get max threshold
-            groupInfo.maxThreshold = groupInfoBottle->get(3).asDouble();
+            groupInfo.maxThreshold = groupInfoBottle->get(3).asFloat64();
 
             //get list of actuators
             yarp::os::Bottle* actuatorListBottle = groupInfoBottle->get(4).asList();
@@ -205,7 +205,7 @@ public:
             yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter period, using default value" << period;
         } else 
         {
-            period = rf.find("period").asDouble();
+            period = rf.find("period").asFloat64();
             yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Found parameter period:" << period;
         }
 
