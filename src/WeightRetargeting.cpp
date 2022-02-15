@@ -27,6 +27,8 @@ public:
         std::vector<std::string> actuators;
     };
 
+    const std::string LOG_PREFIX = "HapticModule"; 
+
     const std::string IFEEL_SUIT_ACTUATOR_PREFIX = "iFeelSuit::haptic::Node#";
     
     // Number of configuration parameters defining an actuator group
@@ -72,7 +74,7 @@ public:
      * @brief Retrieve data related to actuators groups from configuration
      * 
      * @param rf the ResourceFinder instance
-     * @return true if the reading was successfull
+     * @return true if the reading was successful
      * @return false otherwise
      */
     bool readActuatorsGroups(yarp::os::ResourceFinder &rf)
@@ -81,11 +83,11 @@ public:
         yarp::os::Bottle* actuatorGroupsBottle = rf.find("actuator_groups").asList();
         if(actuatorGroupsBottle==nullptr)
         {
-            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter: actuator_groups";
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter: actuator_groups";
             return false;
         }
 
-        yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "actuator_groups OK";
+        yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter: actuator_groups";
         for(int i=0; i<actuatorGroupsBottle->size(); i++)
         {
             ActuatorGroupInfo groupInfo;
@@ -93,7 +95,7 @@ public:
 
             if(groupInfoBottle->size()!=CONFIG_GROUP_SIZE)
             {
-                yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "The number of configuration parameter for group"<<i<<"is incorrect (must be"<<CONFIG_GROUP_SIZE<<")";
+                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "The number of configuration parameter for group"<<i<<"is incorrect (must be"<<CONFIG_GROUP_SIZE<<")";
                 return false;
             }
 
@@ -101,7 +103,7 @@ public:
             std::string groupName = groupInfoBottle->get(0).asString();
             if(actuatorGroupMap.find(groupName)!=actuatorGroupMap.end())
             {
-                yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Multiple definition of actuator group"<<groupName;
+                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Multiple definition of actuator group"<<groupName;
                 return false;
             }
 
@@ -118,14 +120,14 @@ public:
             yarp::os::Bottle* actuatorListBottle = groupInfoBottle->get(4).asList();
             if(actuatorListBottle->size()==0)
             {
-                yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "The actuators list of"<<groupName<<"is empty!";
+                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "The actuators list of"<<groupName<<"is empty!";
                 return false;
             }
 
             for(int j = 0; j<actuatorListBottle->size(); j++) 
                 groupInfo.actuators.push_back(actuatorListBottle->get(j).asString());
 
-            yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Added actuator group: name"<<groupName <<"| Joint axis"<<axisName
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Added actuator group: name"<<groupName <<"| Joint axis"<<axisName
                                                       <<"| Min threshold"<< groupInfo.minThreshold << "| Max threshold"<< groupInfo.maxThreshold;
 
             //add joint axis name to the list
@@ -159,7 +161,6 @@ public:
 
             if(actuationIntensity>0)
             {
-                yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Sending"<< actuationIntensity << "to group" << pair.first<< "with"<<jointNames[actuatorGroupInfo.jointIdx]<<"torque"<< jointTorques[actuatorGroupInfo.jointIdx];
                 //send the haptic command to all the related actuators
                 for(const std::string& actuator : actuatorGroupInfo.actuators)
                 { 
@@ -175,10 +176,6 @@ public:
                     actuatorCommandPort.write(true);
                 }
             }
-            else
-            {
-                yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Not actuating the group" << pair.first << ","<<jointNames[actuatorGroupInfo.jointIdx]<<"torque is"<< jointTorques[actuatorGroupInfo.jointIdx];
-            }
 
         }
 
@@ -193,7 +190,7 @@ public:
         std::string robotName = rf.find("robot").asString();
         if(robotName.empty())
         {
-            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter: robot";
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter: robot";
             return false;
         } else if (robotName[0]!='/')
         {
@@ -203,11 +200,11 @@ public:
         // read period param
         if(!rf.check("period"))
         {
-            yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter period, using default value" << period;
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter period, using default value" << period;
         } else 
         {
             period = rf.find("period").asFloat64();
-            yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Found parameter period:" << period;
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter period:" << period;
         }
 
         yarp::os::Bottle* remoteBoardsBottle = rf.find("remote_boards").asList();
@@ -215,16 +212,16 @@ public:
         // remote control boards 
         if(remoteBoardsBottle==nullptr)
         {
-            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter: remote_boards";
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter: remote_boards";
             return false;
         }
 
-        yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "remote_boards OK";
+        yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter remote_boards";
         for(int i=0;i<remoteBoardsBottle->size();i++)
         {
             std::string remoteBoard = remoteBoardsBottle->get(i).asString();
 
-            yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Added remote control board:" << remoteBoard;
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Added remote control board:" << remoteBoard;
 
             if(remoteBoard[0]!='/') remoteBoard = "/"+remoteBoard;
             remoteControlBoards.push_back(remoteBoard);
@@ -252,7 +249,7 @@ public:
 
         if(!result)
         {
-            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Unable to open the ControlBoardRemapper";
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Unable to open the ControlBoardRemapper";
             return result;
         }
 
@@ -260,7 +257,7 @@ public:
 
         if(!result)
         {
-            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Unable to get torque control interface";
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Unable to get torque control interface";
             return result;
         }
 
@@ -268,7 +265,7 @@ public:
         iTorqueControl->getAxes(&axes);
         if(axes!=jointNames.size())
         {
-            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Number of iTorqueControl axes is different than the configured ones";
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Number of iTorqueControl axes is different than the configured ones";
             result = false;
         }
         else
@@ -281,7 +278,7 @@ public:
         // Initialize actuator command port and connect to command input port
         if(!actuatorCommandPort.open(wearableActuatorCommandPortName))
         {
-            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Failed to open" << actuatorCommandPort.getName();
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Failed to open" << actuatorCommandPort.getName();
             return false;
         }
 
@@ -292,14 +289,16 @@ public:
         // open the RPC port
         if(!rpcPort.open(rpcPortName))
         {
-            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Failed to open" << actuatorCommandPort.getName();
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Failed to open" << actuatorCommandPort.getName();
             return false;
         }
         // attach the port
         if (!this->yarp().attachAsServer(rpcPort)) {
-            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Failed to attach" << rpcPortName << "to the RPC service";
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Failed to attach" << rpcPortName << "to the RPC service";
             return false;
         }
+
+        yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT,  LOG_PREFIX) << "Module started successfully!";
 
         return true;
     }
@@ -359,10 +358,10 @@ int main(int argc, char * argv[])
     rf.setDefaultContext("WeightRetargeting");
     rf.configure(argc, argv);
 
-    yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Configuring and starting module.";
+    yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, module.LOG_PREFIX) << "Configuring and starting module.";
 
     if (!module.runModule(rf)) {
-        yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Module did not start.";
+        yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, module.LOG_PREFIX) << "Module did not start.";
     }
 
     return 0;

@@ -16,6 +16,8 @@ class WeightDisplayModule : public yarp::os::RFModule
 {
 public:
 
+    const std::string LOG_PREFIX = "DisplayModule"; 
+
     const double GRAVITY_ACCELERATION = 9.81;
     const int FRACTIONAL_DIGITS = 3; // Number of digits of the weight's fractional part  
 
@@ -77,40 +79,40 @@ public:
         // read period param
         if(!rf.check("period"))
         {
-            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter period, using default value" << period;
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter period, using default value" << period;
         } else 
         {
             period = rf.find("period").asFloat64();
-            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Found parameter period:" << period;
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter period:" << period;
         }
 
         // read port_prefix param
         if(!rf.check("port_prefix"))
         {
-            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter port_prefix, using default value:" << portPrefix;
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter port_prefix, using default value:" << portPrefix;
         } else 
         {
             portPrefix = rf.find("port_prefix").asString();
-            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Found parameter port_prefix:" << portPrefix;
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter port_prefix:" << portPrefix;
         }
 
         // read input port names
         yarp::os::Bottle* inputPortNamesBottle = rf.find("input_port_names").asList();
         if(inputPortNamesBottle == nullptr)
         {
-            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter input_port_names!";
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter input_port_names!";
             return false;
         }
         else if(inputPortNamesBottle->size()==0)
         {
-            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Parameter input_port_names is empty!";
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Parameter input_port_names is empty!";
             return false;
         }
         
         for(int i=0; i<inputPortNamesBottle->size(); i++)
         {
             std::string portName = inputPortNamesBottle->get(i).asString();
-            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Found input port name:"<<portName;
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found input port name:"<<portName;
             inputPortNames.push_back(portPrefix+"/"+portName+":i");
         }
 
@@ -122,32 +124,32 @@ public:
         if(!rf.check("rpc_port"))
         {
             labelRPCServerPortName = std::string();
-            yCWarning(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter rpc_port, the RPC to enable the label will not be used";
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter rpc_port, the RPC to enable the label will not be used";
         } else 
         {
             labelRPCServerPortName = rf.find("rpc_port").asString();
             labelRPCClientPortName = portPrefix+labelRPCServerPortName;
-            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Found parameter rpc_port:" << labelRPCServerPortName;
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter rpc_port:" << labelRPCServerPortName;
 
             if(!rf.check("label_id"))
             {
-                yCWarning(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter label_id, using default value:" << labelID;
+                yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter label_id, using default value:" << labelID;
             }
             else
             {
                 labelID = rf.find("label_id").asInt32();
-                yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Found parameter label_id:" << labelID;
+                yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter label_id:" << labelID;
             }
         }
 
         // read min_weight
         if(!rf.check("min_weight"))
         {
-            yCWarning(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter min_weight, using default value:"<<minWeight;
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter min_weight, using default value:"<<minWeight;
         } else
         {
             minWeight = rf.find("min_weight").asFloat64();
-            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Found parameter min_weight:" << minWeight;
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter min_weight:" << minWeight;
         }
 
         return true;
@@ -158,7 +160,7 @@ public:
         // read parameters
         if(!loadParams(rf))
         {
-            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Error in parameter retrieval, stopping";
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Error in parameter retrieval, stopping";
             return false;
         }
 
@@ -178,7 +180,7 @@ public:
         // open output port
         if(!outPort.open(outPortName))
         {
-            yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Unable to open output port:"<< outPortName;
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Unable to open output port:"<< outPortName;
             return false;
         }
 
@@ -187,13 +189,13 @@ public:
         {
             if(!rpcClient.open(labelRPCClientPortName))
             {
-                yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Unable to open RPC client port:"<< labelRPCClientPortName;
+                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Unable to open RPC client port:"<< labelRPCClientPortName;
                 return false;
             }
 
             if(!yarp::os::Network::connect(labelRPCClientPortName, labelRPCServerPortName))
             {
-                yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Unable to connect to RPC server port:"<< labelRPCServerPortName;
+                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Unable to connect to RPC server port:"<< labelRPCServerPortName;
                 return false;
             }
 
@@ -201,14 +203,16 @@ public:
             yarp::os::Bottle response;
             command.addInt32(labelID);
 
-            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Sending message to the label RPC:" << command.toString();
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Sending message to the label RPC:" << command.toString();
             rpcClient.write(command, response);
-            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Response from RPC:" << response.toString();
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Response from RPC:" << response.toString();
 
             // close the RPC port
             rpcClient.close();
-            yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Closing RPC client port:" << labelRPCClientPortName;
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Closing RPC client port:" << labelRPCClientPortName;
         }
+
+        yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT,  LOG_PREFIX) << "Module started successfully!";
 
         return true;
     }
@@ -245,10 +249,10 @@ int main(int argc, char * argv[])
     rf.setDefaultContext("WeightRetargeting");
     rf.configure(argc, argv);
 
-    yCInfo(WEIGHT_RETARGETING_LOG_COMPONENT) << "Configuring and starting module.";
+    yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, module.LOG_PREFIX) << "Configuring and starting module.";
 
     if (!module.runModule(rf)) {
-        yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "Module did not start.";
+        yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, module.LOG_PREFIX) << "Module did not start.";
     }
 
     return 0;
