@@ -80,11 +80,9 @@ The module logs information about the commands sent and the values of the joint 
 | Name                | Description  | Example | Required |
 |---------------------|-----------------------------------------------------------------|---------------------------------------------|---|
 | period               | Working frequency of the module in seconds                                                                                                                                                                | 0.05                                     | :x: 
-| port_prefix       | Prefix of the YARP ports opened by the module                                                                                                                                                        | /WeightDysplayModule                  | :x:|
-| min_weight | Minimum weight to be displayed in kilograms | 0.1 |:x: |
-| input_port_names| Names of the ports opened by the module to read the end-effector wrenches | (left_hand right_hand) | :heavy_check_mark:|
-| rpc_port | Name of the rpc port to enable the text label related to the weight | /joypadDevice/Oculus/rpc | :x: | 
-| label_id | Id of the weight text label | 0 | Required if rpc_port is specified |
+| port_prefix       | Prefix of the YARP ports opened by the module                                                                                                                                                        | /WeightDysplayModule                  | :x: |
+| min_weight | Minimum weight to be displayed in kilograms | 0.1 | :x: |
+| input_port_names| Names of the ports opened by the module to read the end-effector wrenches | (left_hand right_hand) | :heavy_check_mark: |
 
 ## Running the module
 

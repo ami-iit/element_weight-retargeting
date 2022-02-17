@@ -6,7 +6,6 @@
 #include <yarp/os/Network.h>
 #include <yarp/os/RFModule.h>
 #include <yarp/os/LogStream.h>
-#include <yarp/os/RpcClient.h>
 #include <yarp/os/BufferedPort.h>
 #include <yarp/sig/Vector.h>
 
@@ -33,12 +32,6 @@ public:
     std::string portPrefix = "/WeightDisplay";
     std::string outPortName;
     yarp::os::BufferedPort<yarp::os::Bottle> outPort;
-
-    // RPC
-    std::string labelRPCServerPortName;
-    std::string labelRPCClientPortName;
-    int labelID = 0;
-    yarp::os::RpcClient rpcClient;
 
     double getPeriod() override
     {
@@ -116,32 +109,6 @@ public:
             inputPortNames.push_back(portPrefix+"/"+portName+":i");
         }
 
-        // set output port name
-        outPortName = portPrefix+"/out:o";
-
-
-        // read rpc_port param
-        if(!rf.check("rpc_port"))
-        {
-            labelRPCServerPortName = std::string();
-            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter rpc_port, the RPC to enable the label will not be used";
-        } else 
-        {
-            labelRPCServerPortName = rf.find("rpc_port").asString();
-            labelRPCClientPortName = portPrefix+labelRPCServerPortName;
-            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter rpc_port:" << labelRPCServerPortName;
-
-            if(!rf.check("label_id"))
-            {
-                yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter label_id, using default value:" << labelID;
-            }
-            else
-            {
-                labelID = rf.find("label_id").asInt32();
-                yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter label_id:" << labelID;
-            }
-        }
-
         // read min_weight
         if(!rf.check("min_weight"))
         {
@@ -178,38 +145,11 @@ public:
         }
 
         // open output port
+        outPortName = portPrefix+"/out:o";
         if(!outPort.open(outPortName))
         {
             yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Unable to open output port:"<< outPortName;
             return false;
-        }
-
-        // connect to the RPC port
-        if(!labelRPCServerPortName.empty())
-        {
-            if(!rpcClient.open(labelRPCClientPortName))
-            {
-                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Unable to open RPC client port:"<< labelRPCClientPortName;
-                return false;
-            }
-
-            if(!yarp::os::Network::connect(labelRPCClientPortName, labelRPCServerPortName))
-            {
-                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Unable to connect to RPC server port:"<< labelRPCServerPortName;
-                return false;
-            }
-
-            yarp::os::Bottle command;
-            yarp::os::Bottle response;
-            command.addInt32(labelID);
-
-            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Sending message to the label RPC:" << command.toString();
-            rpcClient.write(command, response);
-            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Response from RPC:" << response.toString();
-
-            // close the RPC port
-            rpcClient.close();
-            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Closing RPC client port:" << labelRPCClientPortName;
         }
 
         yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT,  LOG_PREFIX) << "Module started successfully!";
