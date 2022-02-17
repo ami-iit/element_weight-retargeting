@@ -217,12 +217,6 @@ public:
         return true;
     }
 
-    bool interruptModule() override
-    {
-        //TODO
-        return true;
-    }
-
     bool close() override
     {
         // close input ports

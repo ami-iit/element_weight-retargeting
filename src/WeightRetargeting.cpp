@@ -303,12 +303,6 @@ public:
         return true;
     }
 
-    bool interruptModule() override
-    {
-        //TODO
-        return true;
-    }
-
     bool close() override
     {
         actuatorCommandPort.close();
