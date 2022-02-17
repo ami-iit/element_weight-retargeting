@@ -105,3 +105,8 @@ This can be done either via `yarpmanager` or via command-line:
 ```bash
 yarp connect /WeightDisplay/out:o joypadDevice/Oculus/label_<label_ID>
 ```
+
+## :warning: Usage notes 
+
+The module uses the wrenches read from the input ports to compute the weight. 
+In order to do that it assumes that the reference frames of the wrenches have the z-axis orthogonal w.r.t. the ground and the direction opposite to it.
