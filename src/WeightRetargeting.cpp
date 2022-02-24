@@ -48,6 +48,8 @@ public:
     std::unordered_map<std::string,ActuatorGroupInfo> actuatorGroupMap; 
 
     std::vector<double> jointTorques;
+    const std::chrono::milliseconds ACQUISITION_TIMEOUT = std::chrono::milliseconds(5000);
+    std::chrono::time_point<std::chrono::system_clock> lastAcquisition;
 
     // Haptic command
     yarp::os::BufferedPort<wearable::msg::WearableActuatorCommand> actuatorCommandPort;
@@ -160,11 +162,9 @@ public:
         return true;
     }
 
-    bool updateModule() override
+    void generateGroupsActuation()
     {
         std::lock_guard<std::mutex> guard(mutex);
-        iTorqueControl->getTorques(jointTorques.data());
-
         for(auto const & pair : actuatorGroupMap)
         {
             const ActuatorGroupInfo& actuatorGroupInfo = pair.second;
@@ -188,7 +188,23 @@ public:
                     actuatorCommandPort.write(true);
                 }
             }
+        }
+    }
 
+    bool updateModule() override
+    {
+        auto currentTime = std::chrono::system_clock::now(); 
+
+        if(iTorqueControl->getTorques(jointTorques.data()))
+        {
+            lastAcquisition = currentTime;
+
+            generateGroupsActuation();
+
+        } else if(currentTime-lastAcquisition > ACQUISITION_TIMEOUT)
+        {
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Joint torque acquisition timeout has expired!";
+            return false;
         }
 
         return true;
@@ -305,7 +321,6 @@ public:
         }
 
         // Initialize RPC
-
         this->yarp().attachAsServer(rpcPort);
         std::string rpcPortName = "/WeightRetargeting/rpc:i"; //TODO from config?
         // open the RPC port
@@ -319,6 +334,8 @@ public:
             yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Failed to attach" << rpcPortName << "to the RPC service";
             return false;
         }
+
+        lastAcquisition = std::chrono::system_clock::now();
 
         yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT,  LOG_PREFIX) << "Module started successfully!";
 
