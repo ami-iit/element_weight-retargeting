@@ -60,6 +60,7 @@ public:
             stream << std::fixed << std::setprecision(FRACTIONAL_DIGITS)<<weight;
 
             yarp::os::Bottle& weightLabelMessage = outPort.prepare();
+            weightLabelMessage.clear();
             weightLabelMessage.addString(stream.str());
             outPort.write(false);
         }
