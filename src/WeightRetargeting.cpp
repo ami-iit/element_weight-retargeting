@@ -421,7 +421,7 @@ int main(int argc, char * argv[])
 
     yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, module.LOG_PREFIX) << "Configuring and starting module.";
 
-    if (!module.runModule(rf)) {
+    if (module.runModule(rf)!=0) {
         yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, module.LOG_PREFIX) << "Module did not start.";
     }
 
