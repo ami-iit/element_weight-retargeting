@@ -8,6 +8,7 @@
 
 #include <yarp/dev/PolyDriver.h>
 #include <yarp/dev/ITorqueControl.h>
+#include <yarp/dev/ICurrentControl.h>
 
 #include <thrift/WeightRetargetingService.h>
 #include <thrift/WearableActuatorCommand.h>
@@ -29,6 +30,23 @@ public:
         std::vector<std::string> actuators;
     };
 
+    enum class RetargetedValue
+    {
+        JointTorque,
+        MotorCurrent,
+        Invalid
+    };
+
+    static RetargetedValue retargetedValuefromString(const std::string& name)
+    {
+        if(name=="joint_torque")
+            return RetargetedValue::JointTorque;
+        if(name=="motor_current")
+            return RetargetedValue::MotorCurrent;
+        
+        return RetargetedValue::Invalid;
+    }
+
     const std::string LOG_PREFIX = "HapticModule"; 
 
     const std::string IFEEL_SUIT_ACTUATOR_PREFIX = "iFeelSuit::haptic::Node#";
@@ -41,13 +59,17 @@ public:
     std::mutex mutex;
 
     yarp::dev::PolyDriver remappedControlBoard;
+
+    // RetargetedValue
+    RetargetedValue retargetedValue;
     yarp::dev::ITorqueControl* iTorqueControl{ nullptr };
+    yarp::dev::ICurrentControl* iCurrentControl{ nullptr };
 
     std::vector<std::string> remoteControlBoards;
     std::vector<std::string> jointNames;
     std::unordered_map<std::string,ActuatorGroupInfo> actuatorGroupMap; 
 
-    std::vector<double> jointTorques;
+    std::vector<double> interfaceValues;
     const std::chrono::milliseconds ACQUISITION_TIMEOUT = std::chrono::milliseconds(5000);
     std::chrono::time_point<std::chrono::system_clock> lastAcquisition;
 
@@ -63,16 +85,16 @@ public:
         return period; //50Hz
     }
 
-    double computeActuationIntensity(const double measuredTorque, const double minThreshold, const double maxThreshold)
+    double computeActuationIntensity(const double measuredValue, const double minThreshold, const double maxThreshold)
     {
         double actuationIntensity = 0.0;
-        double normalizedTorque = (measuredTorque - minThreshold) / (maxThreshold - minThreshold);
-        if(normalizedTorque>0)
+        double normalizedValue = (measuredValue - minThreshold) / (maxThreshold - minThreshold);
+        if(normalizedValue>0)
         {
-            if(normalizedTorque>1.0) normalizedTorque = 1.0;
+            if(normalizedValue>1.0) normalizedValue = 1.0;
 
             //TODO check if it's better to use steps
-            actuationIntensity = (int)(normalizedTorque*WEIGHT_RETARGETING_MAX_INTENSITY);
+            actuationIntensity = (int)(normalizedValue*WEIGHT_RETARGETING_MAX_INTENSITY);
         }
         return actuationIntensity;
     }
@@ -168,7 +190,8 @@ public:
         {
             const ActuatorGroupInfo& actuatorGroupInfo = pair.second;
 
-            double actuationIntensity = computeActuationIntensity(jointTorques[actuatorGroupInfo.jointIdx] + actuatorGroupInfo.offset, actuatorGroupInfo.minThreshold, actuatorGroupInfo.maxThreshold);
+            double actuationIntensity = computeActuationIntensity(interfaceValues[actuatorGroupInfo.jointIdx] + actuatorGroupInfo.offset, actuatorGroupInfo.minThreshold, actuatorGroupInfo.maxThreshold);
+
             if(actuationIntensity>minIntensity)
             {
                 //send the haptic command to all the related actuators
@@ -193,14 +216,24 @@ public:
     {
         std::lock_guard<std::mutex> guard(mutex);
         auto currentTime = std::chrono::system_clock::now();
-        double buffer[jointNames.size()];
+        std::vector<double> buffer;
+        bool acquisitionResult = false;
 
-        if(iTorqueControl->getTorques(buffer))
+        buffer.resize(jointNames.size());
+
+        switch (retargetedValue)
+        {
+        case RetargetedValue::JointTorque : acquisitionResult = iTorqueControl->getTorques(interfaceValues.data()); break;
+        case RetargetedValue::MotorCurrent : acquisitionResult = iCurrentControl->getCurrents(interfaceValues.data()); break;
+        default: acquisitionResult = false; break;
+        } 
+
+        if(acquisitionResult)
         {
             // update internal data only if acquisition is successful
             for(int i=0;i<jointNames.size();i++)
             {
-                jointTorques[i] = buffer[i];
+                interfaceValues[i] = buffer[i];
             }
 
             lastAcquisition = currentTime;
@@ -209,7 +242,7 @@ public:
 
         } else if(currentTime-lastAcquisition > ACQUISITION_TIMEOUT)
         {
-            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Joint torque acquisition timeout has expired!";
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Data acquisition timeout has expired!";
             return false;
         }
 
@@ -239,6 +272,21 @@ public:
         {
             period = rf.find("period").asFloat64();
             yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter period:" << period;
+        }
+
+        // read motor_current param
+        if(!rf.check("retargeted_value"))
+        {
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter: retargeted_value";
+            return false;
+        } else 
+        {
+            retargetedValue = retargetedValuefromString(rf.find("retargeted_value").asString());
+            if(retargetedValue==RetargetedValue::Invalid)
+            {
+                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Invalid retargeted_value value:"<< rf.find("retargeted_value").asString();
+                return false;
+            }
         }
 
         // read min_actuation param
@@ -297,7 +345,12 @@ public:
             return result;
         }
 
-        result = remappedControlBoard.view(iTorqueControl);
+        switch(retargetedValue)
+        {
+        case RetargetedValue::JointTorque: result = remappedControlBoard.view(iTorqueControl); break;
+        case RetargetedValue::MotorCurrent: result = remappedControlBoard.view(iCurrentControl); break;
+        default : result = false;
+        }
 
         if(!result)
         {
@@ -314,7 +367,7 @@ public:
         }
         else
         {
-            jointTorques.reserve(axes);
+            interfaceValues.reserve(axes);
         }
 
         std::string wearableActuatorCommandPortName = "/WeightRetargeting/output:o";//TODO config
@@ -388,7 +441,7 @@ public:
     void removeSingleOffset(const std::string& actuatorGroup)
     {
         ActuatorGroupInfo& groupInfo = actuatorGroupMap[actuatorGroup];
-        actuatorGroupMap[actuatorGroup].offset = groupInfo.minThreshold - jointTorques[groupInfo.jointIdx];
+        actuatorGroupMap[actuatorGroup].offset = groupInfo.minThreshold - interfaceValues[groupInfo.jointIdx];
     }
 
     bool removeOffset(const std::string& actuatorGroup) override
