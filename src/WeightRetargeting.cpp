@@ -169,7 +169,7 @@ public:
         {
             const ActuatorGroupInfo& actuatorGroupInfo = pair.second;
 
-            double actuationIntensity = computeActuationIntensity(jointTorques[actuatorGroupInfo.jointIdx] - actuatorGroupInfo.offset, actuatorGroupInfo.minThreshold, actuatorGroupInfo.maxThreshold);
+            double actuationIntensity = computeActuationIntensity(jointTorques[actuatorGroupInfo.jointIdx] + actuatorGroupInfo.offset, actuatorGroupInfo.minThreshold, actuatorGroupInfo.maxThreshold);
 
             if(actuationIntensity>minIntensity)
             {
