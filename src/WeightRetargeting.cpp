@@ -164,13 +164,11 @@ public:
 
     void generateGroupsActuation()
     {
-        std::lock_guard<std::mutex> guard(mutex);
         for(auto const & pair : actuatorGroupMap)
         {
             const ActuatorGroupInfo& actuatorGroupInfo = pair.second;
 
             double actuationIntensity = computeActuationIntensity(jointTorques[actuatorGroupInfo.jointIdx] + actuatorGroupInfo.offset, actuatorGroupInfo.minThreshold, actuatorGroupInfo.maxThreshold);
-
             if(actuationIntensity>minIntensity)
             {
                 //send the haptic command to all the related actuators
@@ -193,10 +191,18 @@ public:
 
     bool updateModule() override
     {
-        auto currentTime = std::chrono::system_clock::now(); 
+        std::lock_guard<std::mutex> guard(mutex);
+        auto currentTime = std::chrono::system_clock::now();
+        double buffer[jointNames.size()];
 
-        if(iTorqueControl->getTorques(jointTorques.data()))
+        if(iTorqueControl->getTorques(buffer))
         {
+            // update internal data only if acquisition is successful
+            for(int i=0;i<jointNames.size();i++)
+            {
+                jointTorques[i] = buffer[i];
+            }
+
             lastAcquisition = currentTime;
 
             generateGroupsActuation();
