@@ -50,6 +50,7 @@ public:
     std::vector<double> jointTorques;
     const std::chrono::milliseconds ACQUISITION_TIMEOUT = std::chrono::milliseconds(5000);
     std::chrono::time_point<std::chrono::system_clock> lastAcquisition;
+    bool firstAcquisition;
 
     // Haptic command
     yarp::os::BufferedPort<wearable::msg::WearableActuatorCommand> actuatorCommandPort;
@@ -203,6 +204,13 @@ public:
                 jointTorques[i] = buffer[i];
             }
 
+            if(!firstAcquisition)
+            {
+                firstAcquisition = true;
+                for(auto const & pair : actuatorGroupMap)
+                  removeSingleOffset(pair.first);
+            }
+
             lastAcquisition = currentTime;
 
             generateGroupsActuation();
@@ -342,6 +350,7 @@ public:
         }
 
         lastAcquisition = std::chrono::system_clock::now();
+        firstAcquisition = false;
 
         yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT,  LOG_PREFIX) << "Module started successfully!";
 
