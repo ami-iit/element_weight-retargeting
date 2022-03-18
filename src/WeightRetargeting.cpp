@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <unordered_map>
 #include <mutex>
+#include <cmath>
 
 #include <yarp/os/Network.h>
 #include <yarp/os/RFModule.h>
@@ -23,7 +24,7 @@ public:
 
     struct ActuatorGroupInfo
     {
-        int jointIdx;
+        std::vector<int> jointIndexes;
         double minThreshold;
         double maxThreshold;
         double offset;
@@ -99,6 +100,26 @@ public:
         return actuationIntensity;
     }
 
+    double computeActuationIntensity(const ActuatorGroupInfo& groupInfo)
+    {
+        double sum = 0;
+        for(const int &index : groupInfo.jointIndexes)
+        {
+            sum+= std::pow(interfaceValues[index],2);
+            //yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "joint "<<jointNames[index]<<interfaceValues[index];
+        }
+        double norm = std::sqrt(sum);
+        
+        // remove offset for single joint axis groups
+        if(groupInfo.jointIndexes.size()==1)
+        {
+            norm = norm+groupInfo.offset;
+        }
+        //yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Norm is"<<norm;
+        return computeActuationIntensity(norm, groupInfo.minThreshold, groupInfo.maxThreshold);
+    }
+
+
     /**
      * @brief Retrieve data related to actuators groups from configuration
      * 
@@ -141,8 +162,22 @@ public:
                 return false;
             }
 
-            //get axis name
-            std::string axisName = groupInfoBottle->get(1).asString();
+            //get axis names
+            std::vector<std::string> jointAxes;
+            yarp::os::Value& jointsList = groupInfoBottle->get(1);
+            if(jointsList.isList())
+            {
+                yarp::os::Bottle* jointsListBottle = jointsList.asList();
+                for(int i=0;i<jointsListBottle->size(); i++)
+                {
+                    jointAxes.push_back(jointsListBottle->get(i).asString());
+                }
+            }
+            else
+            {
+                jointAxes.push_back(jointsList.asString());
+            }
+
 
             //get min threshold
             groupInfo.minThreshold = groupInfoBottle->get(2).asFloat64();
@@ -161,19 +196,22 @@ public:
             for(int j = 0; j<actuatorListBottle->size(); j++) 
                 groupInfo.actuators.push_back(actuatorListBottle->get(j).asString());
 
-            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Added actuator group: name"<<groupName <<"| Joint axis"<<axisName
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Added actuator group: name"<<groupName//TODO axes  <<"| Joint axis"<<jointAxes
                                                       <<"| Min threshold"<< groupInfo.minThreshold << "| Max threshold"<< groupInfo.maxThreshold;
 
             //add joint axis name to the list
-            auto it = std::find(jointNames.begin(), jointNames.end(), axisName);
-            if(it==jointNames.end())
+            for(std::string& axisName : jointAxes)
             {
-                groupInfo.jointIdx = jointNames.size();
-                jointNames.push_back(axisName);
-            }
-            else
-            {
-                groupInfo.jointIdx = it - jointNames.begin();
+                auto it = std::find(jointNames.begin(), jointNames.end(), axisName);
+                if(it==jointNames.end())
+                {
+                    groupInfo.jointIndexes.push_back(jointNames.size());
+                    jointNames.push_back(axisName);
+                }
+                else
+                {
+                    groupInfo.jointIndexes.push_back(it - jointNames.begin());
+                }
             }
             
             // add group info to the map
@@ -190,8 +228,8 @@ public:
         {
             const ActuatorGroupInfo& actuatorGroupInfo = pair.second;
 
-            double actuationIntensity = computeActuationIntensity(interfaceValues[actuatorGroupInfo.jointIdx] + actuatorGroupInfo.offset, actuatorGroupInfo.minThreshold, actuatorGroupInfo.maxThreshold);
-
+            //double actuationIntensity = computeActuationIntensity(interfaceValues[actuatorGroupInfo.jointIdx] + actuatorGroupInfo.offset, actuatorGroupInfo.minThreshold, actuatorGroupInfo.maxThreshold);
+            double actuationIntensity = computeActuationIntensity(actuatorGroupInfo);
             if(actuationIntensity>minIntensity)
             {
                 //send the haptic command to all the related actuators
@@ -223,8 +261,8 @@ public:
 
         switch (retargetedValue)
         {
-        case RetargetedValue::JointTorque : acquisitionResult = iTorqueControl->getTorques(interfaceValues.data()); break;
-        case RetargetedValue::MotorCurrent : acquisitionResult = iCurrentControl->getCurrents(interfaceValues.data()); break;
+        case RetargetedValue::JointTorque : acquisitionResult = iTorqueControl->getTorques(buffer.data()); break;
+        case RetargetedValue::MotorCurrent : acquisitionResult = iCurrentControl->getCurrents(buffer.data()); break;
         default: acquisitionResult = false; break;
         } 
 
@@ -336,6 +374,9 @@ public:
         for(std::string& s : remoteControlBoards) remoteControlBoardsNamesBottle.addString(robotName+s);
         // localPortPrefix
         propRemapper.put("localPortPrefix", "/WeightRetargeting/input");
+        yarp::os::Property& remoteControlBoardsOpts = propRemapper.addGroup("REMOTE_CONTROLBOARD_OPTIONS");
+        remoteControlBoardsOpts.put("writeStrict", "off");
+
 
         result = remappedControlBoard.open(propRemapper);
 
@@ -431,7 +472,10 @@ public:
     void removeSingleOffset(const std::string& actuatorGroup)
     {
         ActuatorGroupInfo& groupInfo = actuatorGroupMap[actuatorGroup];
-        actuatorGroupMap[actuatorGroup].offset = groupInfo.minThreshold - interfaceValues[groupInfo.jointIdx];
+        if(groupInfo.jointIndexes.size()==1)
+        {
+            actuatorGroupMap[actuatorGroup].offset = groupInfo.minThreshold - interfaceValues[groupInfo.jointIndexes[0]];
+        }
     }
 
     bool removeOffset(const std::string& actuatorGroup) override
