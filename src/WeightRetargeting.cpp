@@ -10,6 +10,7 @@
 #include <yarp/dev/PolyDriver.h>
 #include <yarp/dev/ITorqueControl.h>
 #include <yarp/dev/ICurrentControl.h>
+#include <yarp/dev/IEncodersTimed.h>
 
 #include <thrift/WeightRetargetingService.h>
 #include <thrift/WearableActuatorCommand.h>
@@ -65,6 +66,9 @@ public:
     RetargetedValue retargetedValue;
     yarp::dev::ITorqueControl* iTorqueControl{ nullptr };
     yarp::dev::ICurrentControl* iCurrentControl{ nullptr };
+    yarp::dev::IEncodersTimed* iEncodersTimed{ nullptr };
+    std::vector<double> velocities;
+    double maxJointVelocity = 0.35;
 
     std::vector<std::string> remoteControlBoards;
     std::vector<std::string> jointNames;
@@ -106,6 +110,10 @@ public:
         for(const int &index : groupInfo.jointIndexes)
         {
             sum+= std::pow(interfaceValues[index],2);
+            if(velocities[index]>maxJointVelocity)
+            {
+                return 0;
+            }
             //yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "joint "<<jointNames[index]<<interfaceValues[index];
         }
         double norm = std::sqrt(sum);
@@ -276,6 +284,15 @@ public:
 
             lastAcquisition = currentTime;
 
+            if(iEncodersTimed->getEncoderSpeeds(buffer.data()))
+            {
+                for(int i=0;i<jointNames.size();i++)
+                {
+                    velocities[i] = buffer[i];
+                }
+
+            }
+
             generateGroupsActuation();
 
         } else if(currentTime-lastAcquisition > ACQUISITION_TIMEOUT)
@@ -399,7 +416,14 @@ public:
             return result;
         }
 
+        if(!remappedControlBoard.view(iEncodersTimed))
+        {
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Unable to get encodersTimed interface";
+            return result;
+        }
+
         interfaceValues.resize(jointNames.size());
+        velocities.resize(jointNames.size());
 
         std::string wearableActuatorCommandPortName = "/WeightRetargeting/output:o";//TODO config
 
