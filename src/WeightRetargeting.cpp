@@ -67,6 +67,8 @@ public:
     yarp::dev::ITorqueControl* iTorqueControl{ nullptr };
     yarp::dev::ICurrentControl* iCurrentControl{ nullptr };
     yarp::dev::IEncodersTimed* iEncodersTimed{ nullptr };
+    
+    bool useVelocities = false;
     std::vector<double> velocities;
     double maxJointVelocity = 0.35;
 
@@ -110,7 +112,8 @@ public:
         for(const int &index : groupInfo.jointIndexes)
         {
             sum+= std::pow(interfaceValues[index],2);
-            if(velocities[index]>maxJointVelocity)
+
+            if(useVelocities && velocities[index]>maxJointVelocity)
             {
                 return 0;
             }
@@ -284,13 +287,15 @@ public:
 
             lastAcquisition = currentTime;
 
-            if(iEncodersTimed->getEncoderSpeeds(buffer.data()))
+            if(useVelocities)
             {
-                for(int i=0;i<jointNames.size();i++)
+                if(iEncodersTimed->getEncoderSpeeds(buffer.data()))
                 {
-                    velocities[i] = buffer[i];
+                    for(int i=0;i<jointNames.size();i++)
+                    {
+                        velocities[i] = buffer[i];
+                    }
                 }
-
             }
 
             generateGroupsActuation();
@@ -327,6 +332,16 @@ public:
         {
             period = rf.find("period").asFloat64();
             yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter period:" << period;
+        }
+
+        // read period param
+        if(!rf.check("use_velocities"))
+        {
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter use_velocities, using default value" << useVelocities;
+        } else 
+        {
+            period = rf.find("use_velocities").asBool();
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter use_velociteis:" << useVelocities;
         }
 
         // read motor_current param
@@ -416,10 +431,10 @@ public:
             return result;
         }
 
-        if(!remappedControlBoard.view(iEncodersTimed))
+        if(useVelocities && !remappedControlBoard.view(iEncodersTimed))
         {
             yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Unable to get encodersTimed interface";
-            return result;
+            return false;
         }
 
         interfaceValues.resize(jointNames.size());
