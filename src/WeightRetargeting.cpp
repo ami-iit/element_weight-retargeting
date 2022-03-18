@@ -334,15 +334,27 @@ public:
             yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter period:" << period;
         }
 
-        // read period param
+        // read use_velocities param
         if(!rf.check("use_velocities"))
         {
             yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter use_velocities, using default value" << useVelocities;
         } else 
         {
-            period = rf.find("use_velocities").asBool();
-            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter use_velociteis:" << useVelocities;
+            useVelocities = rf.find("use_velocities").asBool();
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter use_velocities:" << useVelocities;
         }
+
+        if(useVelocities)
+        {
+            if(!rf.check("max_velocity"))
+            {
+                yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter max_velocity, using default value" << maxJointVelocity;
+            } else 
+            {
+                maxJointVelocity = rf.find("max_velocity").asFloat64();
+                yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter max_velocity:" << maxJointVelocity;
+            }
+        }   
 
         // read motor_current param
         if(!rf.check("retargeted_value"))
