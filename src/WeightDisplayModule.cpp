@@ -38,11 +38,6 @@ public:
 
     //use velocity info
 
-    struct JointVelocityInfo
-    {
-        std::vector<std::string> jointAxes;
-        double maxVelocity; //TODO vector?
-    };
     struct VelocityHelper
     {
         bool useVelocity = false;
@@ -131,16 +126,18 @@ public:
         if(velocityUtilsGroup.isNull())
         {
             // use default
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Group VELOCITY_UTILS not found";
             return true; 
         }
 
         // read use_velocity 
-        if(velocityUtilsGroup.check("use_velocity"))
+        if(!velocityUtilsGroup.check("use_velocity"))
         {
             // use default
             return true;
-            velocityHelper.useVelocity = velocityUtilsGroup.find("use_velocity").asBool();
         }
+        velocityHelper.useVelocity = velocityUtilsGroup.find("use_velocity").asBool();
+        yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Parameter use_velocity is:"<<velocityHelper.useVelocity;
 
         if(!velocityHelper.useVelocity)
         {
@@ -202,7 +199,6 @@ public:
         }
         for(int i=0;i<jointsInfoBottle->size();i++)
         {
-            std::vector<std::string> jointAxes;
             yarp::os::Bottle* infoBottle = jointsInfoBottle->get(i).asList(); 
             if(infoBottle->size()<2)
             {
@@ -211,10 +207,11 @@ public:
             }
             // read port name
             std::string portName = portPrefix+"/"+infoBottle->get(0).asString();
-            
+
+
             // read joint axes
             std::vector<int> jointsIndices = {};
-            for(int j=1; j<infoBottle->size()-1; j++)
+            for(int j=1; j<infoBottle->size(); j++)
             {
                 jointsIndices.push_back(velocityHelper.jointAxes.size());
                 velocityHelper.jointAxes.push_back(infoBottle->get(j).asString());
@@ -222,8 +219,6 @@ public:
 
             velocityHelper.portToJoints[portName] = jointsIndices;
         }
-
-
 
         return true;
     }
@@ -280,7 +275,8 @@ public:
             yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter min_weight:" << minWeight;
         }
 
-        return true;
+        // read velocity info
+        return readVelocityInfoGroup(rf);
     }
 
     bool configure(yarp::os::ResourceFinder &rf) override
