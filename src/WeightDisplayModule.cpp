@@ -21,7 +21,7 @@ public:
     const std::string LOG_PREFIX = "DisplayModule"; 
 
     const double GRAVITY_ACCELERATION = 9.81;
-    const int FRACTIONAL_DIGITS = 3; // Number of digits of the weight's fractional part  
+    const int FRACTIONAL_DIGITS = 1; // Number of digits of the weight's fractional part  
 
     double period = 0.02; //Default 50Hz
 
