@@ -20,7 +20,8 @@ target_include_directories(WeightDisplayModule PRIVATE
 target_link_libraries(WeightDisplayModule PRIVATE
         YARP::YARP_OS
         YARP::YARP_init
-        YARP::YARP_sig)
+        YARP::YARP_sig
+        YARP::YARP_dev)
 
 # Install the modules
 install(TARGETS WeightRetargetingModule WeightDisplayModule
