@@ -66,9 +66,9 @@ public:
     RetargetedValue retargetedValue;
     yarp::dev::ITorqueControl* iTorqueControl{ nullptr };
     yarp::dev::ICurrentControl* iCurrentControl{ nullptr };
-    yarp::dev::IEncodersTimed* iEncodersTimed{ nullptr };
     
     bool useVelocities = false;
+    yarp::dev::IEncodersTimed* iEncodersTimed{ nullptr };
     std::vector<double> velocities;
     double maxJointVelocity = 0.35;
 
@@ -92,6 +92,16 @@ public:
         return period; //50Hz
     }
 
+    double getNorm(const ActuatorGroupInfo& groupInfo)
+    {
+        double sum = 0;
+        for(const int &index : groupInfo.jointIndexes)
+        {
+            sum+= interfaceValues[index] * interfaceValues[index];
+        }
+        return std::sqrt(sum);
+    }
+
     double computeActuationIntensity(const double measuredValue, const double minThreshold, const double maxThreshold)
     {
         double actuationIntensity = 0.0;
@@ -106,30 +116,35 @@ public:
         return actuationIntensity;
     }
 
-    double computeActuationIntensity(const ActuatorGroupInfo& groupInfo)
+    bool checkGroupVelocity(const ActuatorGroupInfo& groupInfo)
     {
-        double sum = 0;
         for(const int &index : groupInfo.jointIndexes)
         {
-            sum+= std::pow(interfaceValues[index],2);
-
-            if(useVelocities && velocities[index]>maxJointVelocity)
+            if(velocities[index]>maxJointVelocity)
             {
-                return 0;
+                return false;
             }
-            //yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "joint "<<jointNames[index]<<interfaceValues[index];
         }
-        double norm = std::sqrt(sum);
-        
-        // remove offset for single joint axis groups
-        if(groupInfo.jointIndexes.size()==1)
-        {
-            norm = norm+groupInfo.offset;
-        }
-        //yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Norm is"<<norm;
-        return computeActuationIntensity(norm, groupInfo.minThreshold, groupInfo.maxThreshold);
+
+        return true;
     }
 
+    double computeActuationIntensity(const ActuatorGroupInfo& groupInfo)
+    {
+        //check group velocity
+        if(useVelocities && !checkGroupVelocity(groupInfo))
+        {
+            return 0;
+        }
+        
+        // compute the norm
+        double norm = getNorm(groupInfo);
+        
+        // remove offset
+        norm = norm+groupInfo.offset;
+
+        return computeActuationIntensity(norm, groupInfo.minThreshold, groupInfo.maxThreshold);
+    }
 
     /**
      * @brief Retrieve data related to actuators groups from configuration
@@ -523,10 +538,8 @@ public:
     void removeSingleOffset(const std::string& actuatorGroup)
     {
         ActuatorGroupInfo& groupInfo = actuatorGroupMap[actuatorGroup];
-        if(groupInfo.jointIndexes.size()==1)
-        {
-            actuatorGroupMap[actuatorGroup].offset = groupInfo.minThreshold - interfaceValues[groupInfo.jointIndexes[0]];
-        }
+
+        actuatorGroupMap[actuatorGroup].offset = groupInfo.minThreshold - getNorm(groupInfo);
     }
 
     bool removeOffset(const std::string& actuatorGroup) override
