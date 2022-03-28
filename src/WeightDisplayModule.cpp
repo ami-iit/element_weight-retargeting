@@ -37,7 +37,6 @@ public:
     yarp::os::BufferedPort<yarp::os::Bottle> outPort;
 
     //use velocity info
-
     struct VelocityHelper
     {
         bool useVelocity = false;
@@ -74,11 +73,12 @@ public:
             //skip cycle
             return true;
         }
+
         // sum z-axis forces
         double zForce = 0.0;
         for(auto const & port : inputPorts)
         {
-            // read value
+            // check on the velocity
             bool readFromPort = true;
             if(velocityHelper.useVelocity)
             {
@@ -92,6 +92,7 @@ public:
                 }
             }
 
+            // add the force if the velocity check is passed
             if(readFromPort)
             {
                 yarp::sig::Vector* wrench = port->read(false);
@@ -104,7 +105,7 @@ public:
         // calculate weight
         double weight = zForce/GRAVITY_ACCELERATION;
 
-        //write to port
+        // write to port
         if(weight>=minWeight)
         {
             // use stringstream to fix number of fractional digits
@@ -126,7 +127,7 @@ public:
         if(velocityUtilsGroup.isNull())
         {
             // use default
-            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Group VELOCITY_UTILS not found";
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Group VELOCITY_UTILS not found, velocity information will not be used";
             return true; 
         }
 
@@ -134,6 +135,7 @@ public:
         if(!velocityUtilsGroup.check("use_velocity"))
         {
             // use default
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter use_velocity. Using default value:"<<velocityHelper.useVelocity;
             return true;
         }
         velocityHelper.useVelocity = velocityUtilsGroup.find("use_velocity").asBool();
@@ -342,7 +344,6 @@ public:
 
         }
 
-
         yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT,  LOG_PREFIX) << "Module started successfully!";
 
         return true;
@@ -354,6 +355,7 @@ public:
         for(auto & port : inputPorts)
             port->close();
 
+        // close the control board remapper
         if(velocityHelper.useVelocity)
         {
             velocityHelper.remappedControlBoard.close();
@@ -361,6 +363,7 @@ public:
 
         // close output port
         outPort.close();
+        
         return true;
     }
 

@@ -67,6 +67,7 @@ public:
     yarp::dev::ITorqueControl* iTorqueControl{ nullptr };
     yarp::dev::ICurrentControl* iCurrentControl{ nullptr };
     
+    // Velocity check parameters
     bool useVelocities = false;
     yarp::dev::IEncodersTimed* iEncodersTimed{ nullptr };
     std::vector<double> velocities;
@@ -76,6 +77,7 @@ public:
     std::vector<std::string> jointNames;
     std::unordered_map<std::string,ActuatorGroupInfo> actuatorGroupMap; 
 
+    // Data acquisition variables
     std::vector<double> interfaceValues;
     const std::chrono::milliseconds ACQUISITION_TIMEOUT = std::chrono::milliseconds(5000);
     std::chrono::time_point<std::chrono::system_clock> lastAcquisition;
@@ -92,12 +94,18 @@ public:
         return period; //50Hz
     }
 
+    /**
+     * @brief Get the square norms of the retargeted interface of an actuator group
+     * 
+     * @param groupInfo the actuators group
+     * @return double the norm of the read measurements
+     */
     double getNorm(const ActuatorGroupInfo& groupInfo)
     {
         double sum = 0;
         for(const int &index : groupInfo.jointIndexes)
         {
-            sum+= interfaceValues[index] * interfaceValues[index];
+            sum += interfaceValues[index] * interfaceValues[index];
         }
         return std::sqrt(sum);
     }
@@ -116,6 +124,13 @@ public:
         return actuationIntensity;
     }
 
+    /**
+     * @brief Check the max velocity constraint for an actuator group
+     * 
+     * @param groupInfo the group to check
+     * @return true if none of the related joints' velocity is above threshold
+     * @return false otherwise
+     */
     bool checkGroupVelocity(const ActuatorGroupInfo& groupInfo)
     {
         for(const int &index : groupInfo.jointIndexes)
@@ -129,6 +144,12 @@ public:
         return true;
     }
 
+    /**
+     * @brief Computes the actuation command value of a group
+     * 
+     * @param groupInfo the actuators group
+     * @return double the value of the actuation command
+     */
     double computeActuationIntensity(const ActuatorGroupInfo& groupInfo)
     {
         //check group velocity
@@ -204,7 +225,6 @@ public:
                 jointAxes.push_back(jointsList.asString());
             }
 
-
             //get min threshold
             groupInfo.minThreshold = groupInfoBottle->get(2).asFloat64();
 
@@ -248,13 +268,16 @@ public:
         return true;
     }
 
+    /**
+     * @brief Generates the actuation commands for all of the configured groups
+     * 
+     */
     void generateGroupsActuation()
     {
         for(auto const & pair : actuatorGroupMap)
         {
             const ActuatorGroupInfo& actuatorGroupInfo = pair.second;
 
-            //double actuationIntensity = computeActuationIntensity(interfaceValues[actuatorGroupInfo.jointIdx] + actuatorGroupInfo.offset, actuatorGroupInfo.minThreshold, actuatorGroupInfo.maxThreshold);
             double actuationIntensity = computeActuationIntensity(actuatorGroupInfo);
             if(actuationIntensity>minIntensity)
             {
@@ -280,11 +303,11 @@ public:
     {
         std::lock_guard<std::mutex> guard(mutex);
         auto currentTime = std::chrono::system_clock::now();
+        
+        // get the data 
         std::vector<double> buffer;
         bool acquisitionResult = false;
-
         buffer.resize(jointNames.size());
-
         switch (retargetedValue)
         {
         case RetargetedValue::JointTorque : acquisitionResult = iTorqueControl->getTorques(buffer.data()); break;
@@ -292,6 +315,7 @@ public:
         default: acquisitionResult = false; break;
         } 
 
+        // check if acquisition was successful
         if(acquisitionResult)
         {
             // update internal data only if acquisition is successful
@@ -302,6 +326,7 @@ public:
 
             lastAcquisition = currentTime;
 
+            // get the velocities
             if(useVelocities)
             {
                 if(iEncodersTimed->getEncoderSpeeds(buffer.data()))
@@ -313,6 +338,7 @@ public:
                 }
             }
 
+            // generate the actuation commands
             generateGroupsActuation();
 
         } else if(currentTime-lastAcquisition > ACQUISITION_TIMEOUT)
@@ -371,7 +397,7 @@ public:
             }
         }   
 
-        // read motor_current param
+        // read retargeted_value param
         if(!rf.check("retargeted_value"))
         {
             yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter: retargeted_value";
@@ -396,9 +422,8 @@ public:
             yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Found parameter min_intensity:" << minIntensity;
         }
 
+        // read remote_boards param 
         yarp::os::Bottle* remoteBoardsBottle = rf.find("remote_boards").asList();
-        
-        // remote control boards 
         if(remoteBoardsBottle==nullptr)
         {
             yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter: remote_boards";
@@ -436,15 +461,15 @@ public:
         yarp::os::Property& remoteControlBoardsOpts = propRemapper.addGroup("REMOTE_CONTROLBOARD_OPTIONS");
         remoteControlBoardsOpts.put("writeStrict", "off");
 
-
+        // open the remapped control board
         result = remappedControlBoard.open(propRemapper);
-
         if(!result)
         {
             yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Unable to open the ControlBoardRemapper";
             return result;
         }
 
+        // get the interface related to the corresponding retargeted value
         switch(retargetedValue)
         {
         case RetargetedValue::JointTorque: result = remappedControlBoard.view(iTorqueControl); break;
@@ -458,6 +483,7 @@ public:
             return result;
         }
 
+        // get the interface for the velocity if needed
         if(useVelocities && !remappedControlBoard.view(iEncodersTimed))
         {
             yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Unable to get encodersTimed interface";
