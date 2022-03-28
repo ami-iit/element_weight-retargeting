@@ -375,14 +375,14 @@ public:
             yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter period:" << period;
         }
 
-        // read use_velocities param
-        if(!rf.check("use_velocities"))
+        // read use_velocity param
+        if(!rf.check("use_velocity"))
         {
-            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter use_velocities, using default value" << useVelocities;
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter use_velocity, using default value" << useVelocities;
         } else 
         {
-            useVelocities = rf.find("use_velocities").asBool();
-            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter use_velocities:" << useVelocities;
+            useVelocities = rf.find("use_velocity").asBool();
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter use_velocity:" << useVelocities;
         }
 
         if(useVelocities)
