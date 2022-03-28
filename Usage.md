@@ -1,4 +1,10 @@
 # WeightRetargetingModule
+
+## How it works
+
+The module holds a data structure linking group of actuators to a list of associated joints. It periodically retrieves some values for such joints (e.g motor current) and compute their square norm. This norm is compared against a minimum and a maximum threshold in order to compute a linear mapping towards the value of the actuation command.
+The module can also use joint velocity information to disable the generation of the actuation command, so that if the velocity of the joints related to an actuator group is above some threshold, it won't be considered.
+
 ## Configuration file
 
 The module requires the following parameters, which can be passed via a `.ini` configuration file:
@@ -6,21 +12,23 @@ The module requires the following parameters, which can be passed via a `.ini` c
 | Name                | Description                                                                                                                                                                                                    | Example                                     |
 |---------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------|
 | robot               | Prefix of the yarp ports published by the robot                                                                                                                                                                | "icub"                                     |
+| retargeted_value | Value of the joints to be used for the retargeting. Eligible values are "motor_currents" and "joint_torques". | motor_current |
 | remote_boards       | List of the remote control boards that publish the data                                                                                                                                                        | ("left_arm" "right_arm")                  |
-| actuator_groups | List of parameters related to actuator groups.   Each element of the list is a sublist: (\<group-name> \<joint-axis-name>  \<min-torque-thresh> \<max-torque-thresh> \<list-of-retargeted-actuators>)  | (("left_biceps" "l_elbow"  0.5 5.5 ( "13@1"   "13@2" ))) |
+| actuator_groups | List of parameters related to actuator groups.   Each element of the list is a sublist: (\<group-name> \<list-of-joint-axis-names>  \<min-value-thresh> \<max-value-thresh> \<list-of-retargeted-actuators>)  | (("left_arm" ("l_wrist_pitch" "l_wrist_yaw") 0.45 1.5 ("13@1" "13@2" "13@4"))) |
+| min_intensity | Minimum actuation intensity that is sent by the module | 20.0 |
+| use_velocities | Flag for checking the joints velocities to allow the retargeting | true |
+| max_velocity | Max velocity for a group's joint to allow the haptic retargeting in rad/s| 0.15 |
 
-An example of configuration file is [`WeightRetargetingElbows.ini`](conf/WeightRetargetingElbows.ini).
-
-**NOTE** setting a minimum threshold greater than the max one, will have the effect of using the joint torques in the negative direction. This can be helpful when wanting to retarget negative torques (see [conf/WeightRetargetingElbows.ini](conf/WeightRetargetingElbows.ini)) for an example.
+An example of configuration file is [`WeightRetargeting_iCub3.ini`](conf/WeightRetargeting_iCub3.ini).
 
 ## Running the module
 
-The following steps assume that installation files are visible by YARP (see [Configure the enviroment](Installation.md#configure-the-environment)).
+The following steps assume that installation files are visible by YARP (see [Configure the environment](Installation.md#configure-the-environment)).
 
 The module can be run with the following command:
 
 ```bash
-WeightRetargetingModule --from WeightRetargetingElbows.ini
+WeightRetargetingModule --from WeightRetargeting_iCub3.ini
 ```
 
 Alternatively, the module can be run via [`yarpmanager`](https://www.yarp.it/latest//yarpmanager.html) through the application [`iFeelSuitWeightRetargeting`](apps/iFeelSuitWeightRetargeting.xml).
@@ -36,42 +44,33 @@ yarp connect /WeightRetargeting/output:o /iFeelSuit/WearableActuatorsCommand/inp
 
 ## RPC 
 
-The module provides with an RPC service accessible via the port `/WeightRetargeting/rpc:i` that allows to change the joint axes torques thresholds in real-time. Below, the specification of the implemented methods
+The module provides with an RPC service accessible via the port `/WeightRetargeting/rpc:i` that allows to change the thresholds in real-time. Below, the specification of the implemented methods
 
 | Method            | Parameters      | Description                                             |
 |-----------------|-----------------|---------------------------------------------------------|
-| setMaxThreshold |                 | Sets the maximum joint torque threshold of a joint axis |
+| setMaxThreshold |                 | Sets the maximum group threshold of a joint axis |
 |                 | 1: actuatorGroup| The name of the group of actuators (e.g. "left_biceps")             |
 |                 | 2: value        | The value of the maximum threshold                      |
 |                 |          |             |
-| setMinThreshold |                 | Sets the maximum joint torque threshold of a joint axis |
+| setMinThreshold |                 | Sets the maximum group threshold of a joint axis |
 |                 | 1: actuatorGroup| The name of the group of actuators (e.g. "left_biceps")             |
 |                 | 2: value        | The value of the minimum threshold                      |
 |                 |          |             |
-| setThresholds   |                 | Set the minimum and maximum joint torque thresholds     |
+| setThresholds   |                 | Set the minimum and maximum group thresholds     |
 |                 | 1: actuatorGroup| The name of the group of actuators (e.g. "left_biceps")             |
 |                 | 2: minThreshold | The value of the minimum threshold                      |
 |                 | 3: maxThreshold | The value of the maximum threshold                      |
+| | |
+| removeOffset | | Remove the offset from the current value to the minimum threshold of the group |
+| |1: actuatorGroup | The name of the interested group (e.g. "left_arm"). Name `all` can be used for removing the offset of all of the configured groups.|
 
 An example of how to use the RPC:
 ```bash
 yarp rpc /WeightRetargeting/rpc:i
-setThresholds left_biceps 1.0 1.2
+setThresholds left_arm 1.0 1.2
 ```
-
-
 
 The message `Response: [ok]` will be shown if the operation was successful.
-
-An useful approach is to set the thresholds before connecting the ports mentioned below. If not set properly, the actuators may start vibrating when not wanted.  
-The module logs information about the commands sent and the values of the joint torques used, which can be used for this purpose. An example:
-
-```bash
-[INFO] |WeightRetargetingModule| Sending 16 to group right_triceps with r_elbow torque 1.13051
-[INFO] |WeightRetargetingModule| Not actuating the group left_triceps , l_elbow torque is 1.2205
-[INFO] |WeightRetargetingModule| Sending 15 to group right_triceps with r_elbow torque 1.12559
-[INFO] |WeightRetargetingModule| Not actuating the group left_triceps , l_elbow torque is 1.2205
-```
 
 # WeightDisplayModule
 
@@ -80,13 +79,22 @@ The module logs information about the commands sent and the values of the joint 
 | Name                | Description  | Example | Required |
 |---------------------|-----------------------------------------------------------------|---------------------------------------------|---|
 | period               | Working frequency of the module in seconds                                                                                                                                                                | 0.05                                     | :x: 
-| port_prefix       | Prefix of the YARP ports opened by the module                                                                                                                                                        | /WeightDysplayModule                  | :x: |
+| port_prefix       | Prefix of the YARP ports opened by the module                                                                                                                                                        | /WeightDisplayModule                  | :x: |
 | min_weight | Minimum weight to be displayed in kilograms | 0.1 | :x: |
 | input_port_names| Names of the ports opened by the module to read the end-effector wrenches | (left_hand right_hand) | :heavy_check_mark: |
+| | | |
+|VELOCITY_UTILS| A group with info for the velocity checks | | :x: |
+| use_velocity | Flag for using the velocity check (default `false`) | true | :x: |
+| max_velocity | Max velocity for the joints related to a wrench to allow the accounting for the weight | 0.15 | If `use_velocity` is true |
+| robot | Prefix of the yarp ports published by the robot | "icub" | If `use_velocity` is true |
+| remote_boards | List of the remote control boards that publish the data | ("left_arm" "right_arm") | If `use_velocity` is true |
+| joints_info | List of joints associated to a port that publishes the external wrenches in the form ( <port_name> <joint_axis>+ ) | (("left_hand" "l_wrist_pitch" "l_wrist_yaw")) | If `use_velocity` is true |
+
+
 
 ## Running the module
 
-The following steps assume that installation files are visible by YARP (see [Configure the enviroment](Installation.md#configure-the-environment)).
+The following steps assume that installation files are visible by YARP (see [Configure the environment](Installation.md#configure-the-environment)).
 
 The module can be run with the following command:
 
