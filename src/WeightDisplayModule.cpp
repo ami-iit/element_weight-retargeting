@@ -50,6 +50,7 @@ public:
     };
 
     VelocityHelper velocityHelper;
+    std::vector<double> jointVelBuffer;
 
     double getPeriod() override
     {
@@ -58,13 +59,10 @@ public:
 
     bool updateModule() override
     {
-
-        std::vector<double> buffer;
         bool getVelocityResult = false;
         if(velocityHelper.useVelocity)
         {
-            buffer.resize(velocityHelper.jointAxes.size());
-            getVelocityResult = velocityHelper.iEncodersTimed->getEncoderSpeeds(buffer.data());
+            getVelocityResult = velocityHelper.iEncodersTimed->getEncoderSpeeds(jointVelBuffer.data());
         }
 
         if(velocityHelper.useVelocity && !getVelocityResult)
@@ -85,7 +83,7 @@ public:
                 auto const& jointsIndices = velocityHelper.portToJoints[port->getName()];  
                 for(int i=0; i<jointsIndices.size(); i++)
                 {
-                    if(buffer[jointsIndices[i]]>velocityHelper.maxVelocity)
+                    if(jointVelBuffer[jointsIndices[i]]>velocityHelper.maxVelocity)
                     {
                         readFromPort = false;
                     }
@@ -314,6 +312,9 @@ public:
         // manage use velocity
         if(velocityHelper.useVelocity)
         {
+            // set the size of the data buffer
+            jointVelBuffer.resize(velocityHelper.jointAxes.size());
+
             // configure the remapper
             yarp::os::Property propRemapper;
             propRemapper.put("device", "remotecontrolboardremapper");
@@ -341,7 +342,6 @@ public:
                 yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Cannot view iEncodersTimed!";
                 return false;
             }
-
         }
 
         yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT,  LOG_PREFIX) << "Module started successfully!";
