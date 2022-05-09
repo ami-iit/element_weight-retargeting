@@ -14,10 +14,12 @@ The module requires the following parameters, which can be passed via a `.ini` c
 | robot               | Prefix of the yarp ports published by the robot                                                                                                                                                                | "icub"                                     |
 | retargeted_value | Value of the joints to be used for the retargeting. Eligible values are "motor_currents" and "joint_torques". | motor_current |
 | remote_boards       | List of the remote control boards that publish the data                                                                                                                                                        | ("left_arm" "right_arm")                  |
-| actuator_groups | List of parameters related to actuator groups.   Each element of the list is a sublist: (\<group-name> \<list-of-joint-axis-names>  \<min-value-thresh> \<max-value-thresh> \<list-of-retargeted-actuators>)  | (("left_arm" ("l_wrist_pitch" "l_wrist_yaw") 0.45 1.5 ("13@1" "13@2" "13@4"))) |
+| actuator_groups | List of parameters related to actuator groups. Each element of the list is a sublist: (\<group-name> \<list-of-joint-axis-names>  \<min-value-thresh> \<max-value-thresh> \<list-of-retargeted-actuators>)  | (("left_arm" ("l_wrist_pitch" "l_wrist_yaw") 0.45 1.5 ("13@1" "13@2" "13@4"))) |
 | min_intensity | Minimum actuation intensity that is sent by the module | 20.0 |
 | use_velocity | Flag for checking the joints velocities to allow the retargeting | true |
 | max_velocity | Max velocity for a group's joint to allow the haptic retargeting in rad/s| 0.15 |
+
+:warning: The value `all` cannot be used for an actuators group name.
 
 An example of configuration file is [`WeightRetargeting_iCub3.ini`](conf/WeightRetargeting_iCub3.ini).
 
