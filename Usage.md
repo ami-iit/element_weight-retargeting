@@ -2,7 +2,7 @@
 
 ## How it works
 
-The module holds a data structure linking group of actuators to a list of associated joints. It periodically retrieves some values for such joints (e.g motor current) and compute their square norm. This norm is compared against a minimum and a maximum threshold in order to compute a linear mapping towards the value of the actuation command.
+The module holds a data structure linking groups of actuators to a list of associated joints. It periodically retrieves some values for such joints (e.g motor current) and computes their square norm. This norm is compared against a minimum and a maximum threshold in order to compute a linear mapping towards the value of the actuation command.
 The module can also use joint velocity information to disable the generation of the actuation command, so that if the velocity of the joints related to an actuator group is above some threshold, it won't be considered.
 
 ## Configuration file
