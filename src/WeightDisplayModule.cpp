@@ -9,6 +9,9 @@
 #include <yarp/os/BufferedPort.h>
 #include <yarp/sig/Vector.h>
 
+#include <yarp/dev/PolyDriver.h>
+#include <yarp/dev/IEncodersTimed.h>
+
 #include "WeightRetargetingLogComponent.h"
 
 class WeightDisplayModule : public yarp::os::RFModule
@@ -18,7 +21,7 @@ public:
     const std::string LOG_PREFIX = "DisplayModule"; 
 
     const double GRAVITY_ACCELERATION = 9.81;
-    const int FRACTIONAL_DIGITS = 3; // Number of digits of the weight's fractional part  
+    const int FRACTIONAL_DIGITS = 1; // Number of digits of the weight's fractional part  
 
     double period = 0.02; //Default 50Hz
 
@@ -33,6 +36,22 @@ public:
     std::string outPortName;
     yarp::os::BufferedPort<yarp::os::Bottle> outPort;
 
+    //use velocity info
+    struct VelocityHelper
+    {
+        bool useVelocity = false;
+        std::string robotName;
+        double maxVelocity;
+        std::vector<std::string> remoteBoards;
+        std::vector<std::string> jointAxes;
+        yarp::dev::PolyDriver remappedControlBoard;
+        std::unordered_map<std::string, std::vector<int>> portToJoints;
+        yarp::dev::IEncodersTimed* iEncodersTimed{nullptr};
+    };
+
+    VelocityHelper velocityHelper;
+    std::vector<double> jointVelBuffer;
+
     double getPeriod() override
     {
         return period; //50Hz
@@ -40,19 +59,51 @@ public:
 
     bool updateModule() override
     {
+        bool getVelocityResult = false;
+        if(velocityHelper.useVelocity)
+        {
+            getVelocityResult = velocityHelper.iEncodersTimed->getEncoderSpeeds(jointVelBuffer.data());
+        }
+
+        if(velocityHelper.useVelocity && !getVelocityResult)
+        {
+            //TODO use timeout
+            //skip cycle
+            return true;
+        }
+
         // sum z-axis forces
         double zForce = 0.0;
         for(auto const & port : inputPorts)
         {
-            yarp::sig::Vector* wrench = port->read(false);
-            if(wrench!=nullptr && (*wrench)[2]<0)
-                zForce += -(*wrench)[2];
+            // check on the velocity
+            bool readFromPort = true;
+            if(velocityHelper.useVelocity)
+            {
+                auto const& jointsIndices = velocityHelper.portToJoints[port->getName()];  
+                for(int i=0; i<jointsIndices.size(); i++)
+                {
+                    if(jointVelBuffer[jointsIndices[i]]>velocityHelper.maxVelocity)
+                    {
+                        readFromPort = false;
+                    }
+                }
+            }
+
+            // add the force if the velocity check is passed
+            if(readFromPort)
+            {
+                yarp::sig::Vector* wrench = port->read(false);
+                if(wrench!=nullptr && (*wrench)[2]<0)
+                    zForce += -(*wrench)[2];
+            }
+            
         }
 
         // calculate weight
         double weight = zForce/GRAVITY_ACCELERATION;
 
-        //write to port
+        // write to port
         if(weight>=minWeight)
         {
             // use stringstream to fix number of fractional digits
@@ -63,6 +114,110 @@ public:
             weightLabelMessage.clear();
             weightLabelMessage.addString(stream.str());
             outPort.write(false);
+        }
+
+        return true;
+    }
+
+    bool readVelocityInfoGroup(yarp::os::ResourceFinder &rf)
+    {
+        yarp::os::Bottle velocityUtilsGroup = rf.findGroup("VELOCITY_UTILS");
+        if(velocityUtilsGroup.isNull())
+        {
+            // use default
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Group VELOCITY_UTILS not found, velocity information will not be used";
+            return true; 
+        }
+
+        // read use_velocity 
+        if(!velocityUtilsGroup.check("use_velocity"))
+        {
+            // use default
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter use_velocity. Using default value:"<<velocityHelper.useVelocity;
+            return true;
+        }
+        velocityHelper.useVelocity = velocityUtilsGroup.find("use_velocity").asBool();
+        yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Parameter use_velocity is:"<<velocityHelper.useVelocity;
+
+        if(!velocityHelper.useVelocity)
+        {
+            return true;
+        }
+
+        // read max_velocity
+        if(!velocityUtilsGroup.check("max_velocity"))
+        {
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter max_velocity when use_velocity is enabled";
+            return false;
+        }
+        velocityHelper.maxVelocity = velocityUtilsGroup.find("max_velocity").asFloat64();
+
+        // read robot
+        if(!velocityUtilsGroup.check("robot"))
+        {
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter robot when use_velocity is enabled";
+            return false;
+        }
+        velocityHelper.robotName = velocityUtilsGroup.find("robot").asString();
+        if (velocityHelper.robotName[0]!='/')
+        {
+            velocityHelper.robotName = "/"+velocityHelper.robotName;
+        }
+
+        // read remote boards
+        if(!velocityUtilsGroup.check("remote_boards"))
+        {
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter remote_boards when use_velocity is enabled";
+            return false;
+        }
+
+        yarp::os::Bottle* remoteBoardsBottle = velocityUtilsGroup.find("remote_boards").asList();
+        if(remoteBoardsBottle->size()==0)
+        {
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Parameter remote_boards cannot be an empty list!";
+            return false;
+        }
+        for(int i=0;i<remoteBoardsBottle->size();i++)
+        {
+            std::string remoteBoard = remoteBoardsBottle->get(i).asString();\
+            if(remoteBoard[0]!='/') remoteBoard = "/" + remoteBoard; 
+
+            velocityHelper.remoteBoards.push_back(remoteBoard);
+        }
+
+        // read joints_info
+        if(!velocityUtilsGroup.check("joints_info"))
+        {
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter remote_boards when joints_info is enabled";
+            return false;
+        }
+        yarp::os::Bottle* jointsInfoBottle = velocityUtilsGroup.find("joints_info").asList();
+        if(jointsInfoBottle->size()==0)
+        {
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Parameter joints_info cannot be an empty list!";
+            return false;
+        }
+        for(int i=0;i<jointsInfoBottle->size();i++)
+        {
+            yarp::os::Bottle* infoBottle = jointsInfoBottle->get(i).asList(); 
+            if(infoBottle->size()<2)
+            {
+                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Bad joints_info format!";
+                return false;
+            }
+            // read port name
+            std::string portName = portPrefix+"/"+infoBottle->get(0).asString();
+
+
+            // read joint axes
+            std::vector<int> jointsIndices = {};
+            for(int j=1; j<infoBottle->size(); j++)
+            {
+                jointsIndices.push_back(velocityHelper.jointAxes.size());
+                velocityHelper.jointAxes.push_back(infoBottle->get(j).asString());
+            }
+
+            velocityHelper.portToJoints[portName] = jointsIndices;
         }
 
         return true;
@@ -120,7 +275,8 @@ public:
             yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter min_weight:" << minWeight;
         }
 
-        return true;
+        // read velocity info
+        return readVelocityInfoGroup(rf);
     }
 
     bool configure(yarp::os::ResourceFinder &rf) override
@@ -153,6 +309,41 @@ public:
             return false;
         }
 
+        // manage use velocity
+        if(velocityHelper.useVelocity)
+        {
+            // set the size of the data buffer
+            jointVelBuffer.resize(velocityHelper.jointAxes.size());
+
+            // configure the remapper
+            yarp::os::Property propRemapper;
+            propRemapper.put("device", "remotecontrolboardremapper");
+            // axes names
+            propRemapper.addGroup("axesNames");
+            yarp::os::Bottle& axesNamesBottle = propRemapper.findGroup("axesNames").addList();
+            for(std::string& s : velocityHelper.jointAxes) axesNamesBottle.addString(s);
+            // remote control boards names
+            propRemapper.addGroup("remoteControlBoards");
+            yarp::os::Bottle& remoteControlBoardsNamesBottle = propRemapper.findGroup("remoteControlBoards").addList();
+            for(std::string& s : velocityHelper.remoteBoards) remoteControlBoardsNamesBottle.addString(velocityHelper.robotName+s);
+            // localPortPrefix
+            propRemapper.put("localPortPrefix", "/WeightDisplay/input");
+            yarp::os::Property& remoteControlBoardsOpts = propRemapper.addGroup("REMOTE_CONTROLBOARD_OPTIONS");
+            remoteControlBoardsOpts.put("writeStrict", "off");
+
+            if(!velocityHelper.remappedControlBoard.open(propRemapper))
+            {
+                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Cannot open remoteControlBoardRemapper!";
+                return false;
+            }
+
+            if(!velocityHelper.remappedControlBoard.view(velocityHelper.iEncodersTimed))
+            {
+                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Cannot view iEncodersTimed!";
+                return false;
+            }
+        }
+
         yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT,  LOG_PREFIX) << "Module started successfully!";
 
         return true;
@@ -164,8 +355,15 @@ public:
         for(auto & port : inputPorts)
             port->close();
 
+        // close the control board remapper
+        if(velocityHelper.useVelocity)
+        {
+            velocityHelper.remappedControlBoard.close();
+        }
+
         // close output port
         outPort.close();
+        
         return true;
     }
 
@@ -186,7 +384,7 @@ int main(int argc, char * argv[])
 
     yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, module.LOG_PREFIX) << "Configuring and starting module.";
 
-    if (!module.runModule(rf)) {
+    if (module.runModule(rf)!=0) {
         yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, module.LOG_PREFIX) << "Module did not start.";
     }
 
