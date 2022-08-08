@@ -2,8 +2,10 @@ find_package(WearableActuators REQUIRED)
 
 yarp_add_idl(WEIGHT_RETARGETING_SERVICE thrift/WeightRetargetingService.thrift)
 
+file(GLOB WEIGHT_RETARGETING_SRC src/*.cpp)
+
 # Add weight retargeting module
-add_executable(WeightRetargetingModule src/WeightRetargeting.cpp ${WEIGHT_RETARGETING_SERVICE})
+add_executable(WeightRetargetingModule ${WEIGHT_RETARGETING_SRC} ${WEIGHT_RETARGETING_SERVICE})
 target_include_directories(WeightRetargetingModule PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include # specific includes
         ${CMAKE_SOURCE_DIR}/src/include) # project level includes

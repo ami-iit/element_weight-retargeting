@@ -17,6 +17,8 @@
 
 #include "WeightRetargetingLogComponent.h"
 
+#include "CommandGeneratorFactory.h"
+
 #define WEIGHT_RETARGETING_MAX_INTENSITY 127
 
 class WeightRetargetingModule : public yarp::os::RFModule, WeightRetargetingService
