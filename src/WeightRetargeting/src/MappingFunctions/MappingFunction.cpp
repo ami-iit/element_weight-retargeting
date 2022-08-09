@@ -1,4 +1,4 @@
-#include "MappingFunction.h"
+#include "MappingFunctions/MappingFunction.h"
 
 using namespace WeightRetargeting;
 

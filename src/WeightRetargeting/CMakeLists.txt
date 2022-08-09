@@ -2,7 +2,7 @@ find_package(WearableActuators REQUIRED)
 
 yarp_add_idl(WEIGHT_RETARGETING_SERVICE thrift/WeightRetargetingService.thrift)
 
-file(GLOB WEIGHT_RETARGETING_SRC src/*.cpp)
+file(GLOB_RECURSE WEIGHT_RETARGETING_SRC src/*.cpp)
 
 # Add weight retargeting module
 add_executable(WeightRetargetingModule ${WEIGHT_RETARGETING_SRC} ${WEIGHT_RETARGETING_SERVICE})
