@@ -6,6 +6,8 @@
 
 using namespace WeightRetargeting::mapping;
 
+StepMappingFunction::StepMappingFunction() : LinearMappingFunction(){};
+
 void StepMappingFunction::makeSteps(const std::vector<double>& thresholds, const std::vector<double>& commands)
 {
     if(commands.size()!=thresholds.size()+1)

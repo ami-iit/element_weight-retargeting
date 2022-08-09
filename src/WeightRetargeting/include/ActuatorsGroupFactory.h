@@ -19,7 +19,7 @@ struct WeightRetargeting::ActuatorsGroup
     std::string name;
     std::vector<std::string> jointAxes;
     std::unique_ptr<CommandGenerator> commandGenerator;
-    std::vector<std::string> actuatorsList;
+    std::vector<std::string> actuators;
 };
 
 class WeightRetargeting::ActuatorsGroupFactory
@@ -27,10 +27,20 @@ class WeightRetargeting::ActuatorsGroupFactory
 private:
     // parse utilities
     std::string parseError;
+    // buffer variables
+    std::string groupName;
+    std::string mapFunction;
+    double minThreshold;
+    double maxThreshold;
+    std::vector<std::string> jointAxes;
+    std::vector<std::string> actuators;
 
     // parsed structures
-    std::unordered_map<std::string, ActuatorsGroup> parsedActuatorsGroup;
-    
+    std::unordered_map<std::string, ActuatorsGroup> parsedActuatorsGroups;
+
+
+    // creates the group
+    void makeGroup();
 public:
     const static std::vector<std::string> MAP_FUNCTIONS;
 

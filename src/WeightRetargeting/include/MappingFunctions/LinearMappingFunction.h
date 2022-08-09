@@ -8,7 +8,7 @@ namespace WeightRetargeting::mapping
     class LinearMappingFunction;
 }
 
-class WeightRetargeting::mapping::LinearMappingFunction : public WeightRetargeting::MappingFunction
+class WeightRetargeting::mapping::LinearMappingFunction : public WeightRetargeting::mapping::MappingFunction
 {
 public:
     double getCommand() override;

@@ -3,12 +3,12 @@
 
 #include "../CommandGenerator.h"
 
-namespace WeightRetargeting
+namespace WeightRetargeting::mapping
 {
     class MappingFunction;
 };
 
-class WeightRetargeting::MappingFunction : public WeightRetargeting::CommandGenerator
+class WeightRetargeting::mapping::MappingFunction : public WeightRetargeting::CommandGenerator
 {
 protected:
     double minThreshold;

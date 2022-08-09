@@ -1,6 +1,6 @@
 #include "MappingFunctions/MappingFunction.h"
 
-using namespace WeightRetargeting;
+using namespace WeightRetargeting::mapping;
 
 void MappingFunction::setMaxThreshold(double threshold)
 {

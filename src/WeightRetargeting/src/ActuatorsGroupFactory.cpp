@@ -22,17 +22,16 @@ ActuatorsGroupFactory::ActuatorsGroupFactory()
 
 bool ActuatorsGroupFactory::parseFromConfig(yarp::os::Bottle& configGroup)
 {
-    const std::string groupName = configGroup.get(0).asString();
+    groupName = configGroup.get(0).asString();
 
     // get map function
-    std::string map_function;
     ACTUATORS_GROUP_PARSE_CHECK(!configGroup.check("map_function"), 
                                 "Missing a valid map_function paramater in group " + groupName);
-    map_function = configGroup.find("map_function").asString();
+    mapFunction = configGroup.find("map_function").asString();
 
     ACTUATORS_GROUP_PARSE_CHECK(
-        std::find(MAP_FUNCTIONS.begin(), MAP_FUNCTIONS.end(), map_function)==MAP_FUNCTIONS.end(),
-        "Parameter map_function not in the accepted list of values (found " + map_function + ")");
+        std::find(MAP_FUNCTIONS.begin(), MAP_FUNCTIONS.end(), mapFunction)==MAP_FUNCTIONS.end(),
+        "Parameter map_function not in the accepted list of values (found " + mapFunction + ")");
 
     // get min threshold
     auto minThresholdValue = configGroup.find("min_threshold");
@@ -40,7 +39,7 @@ bool ActuatorsGroupFactory::parseFromConfig(yarp::os::Bottle& configGroup)
         !minThresholdValue.isFloat64(),
         "Missing a valid min_threshold parameter in group " +  groupName
     )
-    double minThreshold = minThresholdValue.asFloat64();
+    minThreshold = minThresholdValue.asFloat64();
 
     // get max threshold
     auto maxThresholdValue = configGroup.find("max_threshold");
@@ -48,7 +47,7 @@ bool ActuatorsGroupFactory::parseFromConfig(yarp::os::Bottle& configGroup)
         !maxThresholdValue.isFloat64(), 
         "Missing a valid max_threshold parameter in group " + groupName);
     
-    double maxThreshold = maxThresholdValue.asFloat64();
+    maxThreshold = maxThresholdValue.asFloat64();
 
     // get list of joints
     auto jointAxesValue = configGroup.find("joint_axes");
@@ -58,7 +57,7 @@ bool ActuatorsGroupFactory::parseFromConfig(yarp::os::Bottle& configGroup)
     ACTUATORS_GROUP_PARSE_CHECK(jointAxesBottle->size()==0,
                                 "Empty joint_axes parameter in group " +  groupName);
     
-    std::vector<std::string> jointAxes;
+    jointAxes.clear();
     for(int i=0 ; i<jointAxesBottle->size() ; i++)
     {
         jointAxes.push_back(jointAxesBottle->get(i).asString());
@@ -70,14 +69,46 @@ bool ActuatorsGroupFactory::parseFromConfig(yarp::os::Bottle& configGroup)
                                 "Missing a valid actuators parameter in group " + groupName);
     auto actuatorsBottle = actuatorsValue.asList();
     
-    std::vector<std::string> actuators;
+    actuators.clear();
     for(int i=0 ; i<actuatorsBottle->size() ; i++)
     {
         actuators.push_back(actuatorsBottle->get(i).asString());
     }
 
-
+    makeGroup();
     return true;
+}
+
+void ActuatorsGroupFactory::makeGroup()
+{
+    parsedActuatorsGroups.emplace(groupName, ActuatorsGroup());
+    auto& actuatorGroup = parsedActuatorsGroups.at(groupName);
+
+    actuatorGroup.name = groupName;
+    actuatorGroup.jointAxes = jointAxes;
+    actuatorGroup.actuators = actuators;
+
+    if(mapFunction=="linear")
+    {
+        mapping::LinearMappingFunction *mapFunctionPtr = new mapping::LinearMappingFunction;
+
+        mapFunctionPtr->setMaxThreshold(maxThreshold);
+        mapFunctionPtr->setMinThreshold(minThreshold);
+
+        actuatorGroup.commandGenerator.reset(mapFunctionPtr);
+    }
+    else if(mapFunction=="steps")
+    {
+        mapping::StepMappingFunction *mapFunctionPtr = new mapping::StepMappingFunction;
+
+        mapFunctionPtr->setMaxThreshold(maxThreshold);
+        mapFunctionPtr->setMinThreshold(minThreshold);
+
+        //TODO additional parameters
+
+
+        actuatorGroup.commandGenerator.reset(mapFunctionPtr);
+    }
 }
 
 std::string& ActuatorsGroupFactory::getParseError()
