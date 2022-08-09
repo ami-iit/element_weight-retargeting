@@ -34,15 +34,23 @@ private:
     double maxThreshold;
     std::vector<std::string> jointAxes;
     std::vector<std::string> actuators;
+    int stepFunctionNumber; // number of steps for the step function
+    std::vector<double> stepFunctionThresholds; // step function custom thresholds
+    std::vector<double> stepFunctionCommands; // step function custom commands
 
     // parsed structures
     std::unordered_map<std::string, ActuatorsGroup> parsedActuatorsGroups;
 
+    // parse sub-methods
+    bool parseMapFunction(yarp::os::Bottle& configGroup);
+    bool parseStepMapFunction(yarp::os::Bottle& configGroup);
 
     // creates the group
     void makeGroup();
 public:
     const static std::vector<std::string> MAP_FUNCTIONS;
+    const static std::string LINEAR_MAP_FUNCTION_NAME;
+    const static std::string STEP_MAP_FUNCTION_NAME;
 
     ActuatorsGroupFactory();
 
