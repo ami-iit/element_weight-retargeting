@@ -20,6 +20,8 @@ struct WeightRetargeting::ActuatorsGroup
     std::vector<std::string> jointAxes;
     std::unique_ptr<CommandGenerator> commandGenerator;
     std::vector<std::string> actuators;
+    double minThreshold;
+    double maxThreshold;
 };
 
 class WeightRetargeting::ActuatorsGroupFactory
@@ -57,7 +59,7 @@ public:
     bool parseFromConfig(yarp::os::Bottle& configGroup);
     std::string& getParseError();
 
-   //TODO how to return the infos
+    WeightRetargeting::ActuatorsGroup& getGroup(std::string& name);
 };
 
 

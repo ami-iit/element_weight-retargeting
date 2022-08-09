@@ -17,7 +17,7 @@
 
 #include "WeightRetargetingLogComponent.h"
 
-#include "CommandGeneratorFactory.h"
+#include "ActuatorsGroupFactory.h"
 
 #define WEIGHT_RETARGETING_MAX_INTENSITY 127
 
@@ -25,14 +25,16 @@ class WeightRetargetingModule : public yarp::os::RFModule, WeightRetargetingServ
 {
 public:
 
-    struct ActuatorGroupInfo
+    struct ActuatorGroupHelper
     {
         std::vector<int> jointIndexes;
-        double minThreshold;
-        double maxThreshold;
         double offset;
-        std::vector<std::string> actuators;
+        WeightRetargeting::ActuatorsGroup& info;
+
+        ActuatorGroupHelper(WeightRetargeting::ActuatorsGroup& info): info(info){};
     };
+
+    WeightRetargeting::ActuatorsGroupFactory actuatorsGroupFactory;
 
     enum class RetargetedValue
     {
@@ -77,7 +79,7 @@ public:
 
     std::vector<std::string> remoteControlBoards;
     std::vector<std::string> jointNames;
-    std::unordered_map<std::string,ActuatorGroupInfo> actuatorGroupMap; 
+    std::unordered_map<std::string,ActuatorGroupHelper> actuatorGroupMap; 
 
     // Data acquisition variables
     std::vector<double> interfaceValues;
@@ -102,7 +104,7 @@ public:
      * @param groupInfo the actuators group
      * @return double the norm of the read measurements
      */
-    double getNorm(const ActuatorGroupInfo& groupInfo)
+    double getNorm(const ActuatorGroupHelper& groupInfo)
     {
         double sum = 0;
         for(const int &index : groupInfo.jointIndexes)
@@ -112,16 +114,17 @@ public:
         return std::sqrt(sum);
     }
 
-    double computeActuationIntensity(const double measuredValue, const double minThreshold, const double maxThreshold)
+    double computeActuationIntensity(const ActuatorGroupHelper& helper, const double norm)
     {
-        double actuationIntensity = 0.0;
-        double normalizedValue = (measuredValue - minThreshold) / (maxThreshold - minThreshold);
-        if(normalizedValue>0)
+        // generate command
+        helper.info.commandGenerator->update(norm);
+        double normalizedCommand = helper.info.commandGenerator->getCommand();
+        double actuationIntensity = -1;
+        if(normalizedCommand>0)
         {
-            if(normalizedValue>1.0) normalizedValue = 1.0;
+            if(normalizedCommand>1.0) normalizedCommand = 1.0;
 
-            //TODO check if it's better to use steps
-            actuationIntensity = (int)(normalizedValue*WEIGHT_RETARGETING_MAX_INTENSITY);
+            actuationIntensity = (int)(normalizedCommand*WEIGHT_RETARGETING_MAX_INTENSITY);
         }
         return actuationIntensity;
     }
@@ -133,7 +136,7 @@ public:
      * @return true if none of the related joints' velocity is above threshold
      * @return false otherwise
      */
-    bool checkGroupVelocity(const ActuatorGroupInfo& groupInfo)
+    bool checkGroupVelocity(const ActuatorGroupHelper& groupInfo)
     {
         for(const int &index : groupInfo.jointIndexes)
         {
@@ -152,7 +155,7 @@ public:
      * @param groupInfo the actuators group
      * @return double the value of the actuation command
      */
-    double computeActuationIntensity(const ActuatorGroupInfo& groupInfo)
+    double computeCommand(const ActuatorGroupHelper& groupInfo)
     {
         //check group velocity
         if(useVelocities && !checkGroupVelocity(groupInfo))
@@ -166,7 +169,7 @@ public:
         // remove offset
         norm = norm+groupInfo.offset;
 
-        return computeActuationIntensity(norm, groupInfo.minThreshold, groupInfo.maxThreshold);
+        return computeActuationIntensity(groupInfo, norm);
     }
 
     /**
@@ -179,94 +182,44 @@ public:
     bool readActuatorsGroups(yarp::os::ResourceFinder &rf)
     {
 
-        yarp::os::Bottle* actuatorGroupsBottle = rf.find("actuator_groups").asList();
-        if(actuatorGroupsBottle==nullptr)
+        // iterate over enabled actuator groups
+        //TODO checks
+        auto listOfGroupsBottle = rf.find("list_of_groups").asList();
+        for(int i=0; i<listOfGroupsBottle->size() ; i++)
         {
-            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter: actuator_groups";
-            return false;
-        }
+            std::string groupName = listOfGroupsBottle->get(i).asString();
 
-        yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter: actuator_groups";
-        for(int i=0; i<actuatorGroupsBottle->size(); i++)
-        {
-            ActuatorGroupInfo groupInfo;
-            yarp::os::Bottle* groupInfoBottle = actuatorGroupsBottle->get(i).asList();
-
-            if(groupInfoBottle->size()!=CONFIG_GROUP_SIZE)
+            // parse the info object
+            auto group = rf.findGroup(groupName);
+            if(!actuatorsGroupFactory.parseFromConfig(group))
             {
-                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "The number of configuration parameter for group"<<i<<"is incorrect (must be"<<CONFIG_GROUP_SIZE<<")";
+                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << actuatorsGroupFactory.getParseError();
                 return false;
             }
+            WeightRetargeting::ActuatorsGroup& groupInfo = actuatorsGroupFactory.getGroup(groupName);
 
-            // get actuator group name
-            std::string groupName = groupInfoBottle->get(0).asString();
-            if(groupName=="all")
-            {
-                yCError(WEIGHT_RETARGETING_LOG_COMPONENT) << "All is a reserved name for actuator groups";
-                return false;
-            }
-            else if(actuatorGroupMap.find(groupName)!=actuatorGroupMap.end())
-            {
-                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Multiple definition of actuator group"<<groupName;
-                return false;
-            }
+            // create the helper object
+            actuatorGroupMap.insert({groupName, ActuatorGroupHelper(groupInfo)});
+            ActuatorGroupHelper& groupHelper = actuatorGroupMap.at(groupName);
+            
+            groupHelper.offset = 0.0;
 
-            //get axis names
-            std::vector<std::string> jointAxes;
-            yarp::os::Value& jointsList = groupInfoBottle->get(1);
-            if(jointsList.isList())
-            {
-                yarp::os::Bottle* jointsListBottle = jointsList.asList();
-                for(int i=0;i<jointsListBottle->size(); i++)
-                {
-                    jointAxes.push_back(jointsListBottle->get(i).asString());
-                }
-            }
-            else
-            {
-                jointAxes.push_back(jointsList.asString());
-            }
-
-            //get min threshold
-            groupInfo.minThreshold = groupInfoBottle->get(2).asFloat64();
-
-            //get max threshold
-            groupInfo.maxThreshold = groupInfoBottle->get(3).asFloat64();
-
-            //get list of actuators
-            yarp::os::Bottle* actuatorListBottle = groupInfoBottle->get(4).asList();
-            if(actuatorListBottle->size()==0)
-            {
-                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "The actuators list of"<<groupName<<"is empty!";
-                return false;
-            }
-
-            for(int j = 0; j<actuatorListBottle->size(); j++) 
-                groupInfo.actuators.push_back(actuatorListBottle->get(j).asString());
-
-            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Added actuator group: name"<<groupName//TODO axes  <<"| Joint axis"<<jointAxes
-                                                      <<"| Min threshold"<< groupInfo.minThreshold << "| Max threshold"<< groupInfo.maxThreshold;
-
-            //add joint axis name to the list
-            for(std::string& axisName : jointAxes)
+            //add joint names and indices to the list
+            for(std::string& axisName : groupInfo.jointAxes)
             {
                 auto it = std::find(jointNames.begin(), jointNames.end(), axisName);
                 if(it==jointNames.end())
                 {
-                    groupInfo.jointIndexes.push_back(jointNames.size());
+                    groupHelper.jointIndexes.push_back(jointNames.size());
                     jointNames.push_back(axisName);
                 }
                 else
                 {
-                    groupInfo.jointIndexes.push_back(it - jointNames.begin());
+                    groupHelper.jointIndexes.push_back(it - jointNames.begin());
                 }
             }
-            
-            // add group info to the map
-            groupInfo.offset = 0.0;
-            actuatorGroupMap[groupName] = groupInfo;
         }
-        
+
         return true;
     }
 
@@ -278,13 +231,13 @@ public:
     {
         for(auto const & pair : actuatorGroupMap)
         {
-            const ActuatorGroupInfo& actuatorGroupInfo = pair.second;
+            const ActuatorGroupHelper& actuatorGroupHelper = pair.second;
 
-            double actuationIntensity = computeActuationIntensity(actuatorGroupInfo);
+            double actuationIntensity = computeCommand(actuatorGroupHelper);
             if(actuationIntensity>minIntensity)
             {
                 //send the haptic command to all the related actuators
-                for(const std::string& actuator : actuatorGroupInfo.actuators)
+                for(const std::string& actuator : actuatorGroupHelper.info.actuators)
                 { 
                     wearable::msg::WearableActuatorCommand& wearableActuatorCommand = actuatorCommandPort.prepare();
 
@@ -417,11 +370,11 @@ public:
         // read min_actuation param
         if(!rf.check("min_intensity"))
         {
-            yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Missing parameter min_intensity, using default value" << minIntensity;
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter min_intensity, using default value" << minIntensity;
         } else 
         {
             minIntensity = rf.find("min_intensity").asFloat64();
-            yCDebug(WEIGHT_RETARGETING_LOG_COMPONENT) << "Found parameter min_intensity:" << minIntensity;
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter min_intensity:" << minIntensity;
         }
 
         // read remote_boards param 
@@ -538,7 +491,7 @@ public:
         if(actuatorGroupMap.find(actuatorGroup)==actuatorGroupMap.end())
             return false;
 
-        actuatorGroupMap[actuatorGroup].maxThreshold = value;
+        actuatorGroupMap.at(actuatorGroup).info.maxThreshold = value; //TODO use update method
         return true;
     }
 
@@ -548,7 +501,7 @@ public:
         if(actuatorGroupMap.find(actuatorGroup)==actuatorGroupMap.end())
             return false;
 
-        actuatorGroupMap[actuatorGroup].minThreshold = value;
+        actuatorGroupMap.at(actuatorGroup).info.minThreshold = value;//TODO use update method
         return true;
     }
 
@@ -558,16 +511,16 @@ public:
         if(actuatorGroupMap.find(actuatorGroup)==actuatorGroupMap.end())
             return false;
 
-        actuatorGroupMap[actuatorGroup].minThreshold = minThreshold;
-        actuatorGroupMap[actuatorGroup].maxThreshold = maxThreshold;
+        actuatorGroupMap.at(actuatorGroup).info.minThreshold = minThreshold;
+        actuatorGroupMap.at(actuatorGroup).info.maxThreshold = maxThreshold;
         return true;
     }
 
     void removeSingleOffset(const std::string& actuatorGroup)
     {
-        ActuatorGroupInfo& groupInfo = actuatorGroupMap[actuatorGroup];
+        ActuatorGroupHelper& groupHelper = actuatorGroupMap.at(actuatorGroup);
 
-        actuatorGroupMap[actuatorGroup].offset = groupInfo.minThreshold - getNorm(groupInfo);
+        groupHelper.offset = groupHelper.info.minThreshold - getNorm(groupHelper);
     }
 
     bool removeOffset(const std::string& actuatorGroup) override

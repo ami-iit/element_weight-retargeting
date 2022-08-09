@@ -149,6 +149,8 @@ void ActuatorsGroupFactory::makeGroup()
     actuatorGroup.name = groupName;
     actuatorGroup.jointAxes = jointAxes;
     actuatorGroup.actuators = actuators;
+    actuatorGroup.minThreshold = minThreshold;
+    actuatorGroup.maxThreshold = maxThreshold;
 
     if(mapFunction==LINEAR_MAP_FUNCTION_NAME)
     {
@@ -178,6 +180,11 @@ void ActuatorsGroupFactory::makeGroup()
 
         actuatorGroup.commandGenerator.reset(mapFunctionPtr);
     }
+}
+
+WeightRetargeting::ActuatorsGroup& ActuatorsGroupFactory::getGroup(std::string& name)
+{
+    return parsedActuatorsGroups.at(groupName);
 }
 
 std::string& ActuatorsGroupFactory::getParseError()
