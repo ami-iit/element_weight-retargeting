@@ -16,6 +16,8 @@ protected:
 public:
     void setMinThreshold(double threshold);
     void setMaxThreshold(double threshold);
+
+    virtual ~MappingFunction() = default;
 };
 
 #endif

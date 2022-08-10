@@ -12,6 +12,8 @@ class WeightRetargeting::mapping::LinearMappingFunction : public WeightRetargeti
 {
 public:
     double getCommand() override;
+
+    virtual ~LinearMappingFunction() = default;
 };
 
 #endif

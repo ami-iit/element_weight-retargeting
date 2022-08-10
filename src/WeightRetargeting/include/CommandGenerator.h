@@ -21,6 +21,8 @@ public:
     void update(double value);
     virtual double getCommand() = 0;
 
+    virtual ~CommandGenerator() = default;
+
 };
 
 #endif

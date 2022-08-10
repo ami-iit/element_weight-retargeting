@@ -17,6 +17,7 @@ private:
     std::vector<double> commands;
 public:
     StepMappingFunction();
+    ~StepMappingFunction() = default;
 
     /**
      * @brief create equally distributed value and command steps
