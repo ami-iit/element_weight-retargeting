@@ -16,12 +16,17 @@ void StepMappingFunction::makeSteps(const std::vector<double>& thresholds, const
     if(!std::is_sorted(thresholds.begin(), thresholds.end()))
         throw std::invalid_argument("Thresholds parameter must be a sorted list of values");
 
+    this->commands.clear();
+    this->thresholds.clear();
+
     this->thresholds = thresholds;
     this->commands = commands;
 }
 
 void StepMappingFunction::makeSteps(const int n)
 {
+    commands.clear();
+    thresholds.clear();
     commands.push_back(0.0);
     for(int i=1; i<=n; i++)
     {
