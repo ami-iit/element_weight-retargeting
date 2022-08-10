@@ -181,9 +181,7 @@ public:
      */
     bool readActuatorsGroups(yarp::os::ResourceFinder &rf)
     {
-
         // iterate over enabled actuator groups
-        //TODO checks
         auto listOfGroupsBottle = rf.find("list_of_groups").asList();
         for(int i=0; i<listOfGroupsBottle->size() ; i++)
         {
@@ -191,6 +189,13 @@ public:
 
             // parse the info object
             auto group = rf.findGroup(groupName);
+
+            if(group.isNull())
+            {
+                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Group"<< groupName << "not found!";
+                return false;
+            }
+
             if(!actuatorsGroupFactory.parseFromConfig(group))
             {
                 yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << actuatorsGroupFactory.getParseError();
@@ -204,10 +209,11 @@ public:
             
             groupHelper.offset = 0.0;
 
-            //add joint names and indices to the list
+            // add joint names and indices to the list
             for(std::string& axisName : groupInfo.jointAxes)
             {
                 auto it = std::find(jointNames.begin(), jointNames.end(), axisName);
+                // add name only if not already found
                 if(it==jointNames.end())
                 {
                     groupHelper.jointIndexes.push_back(jointNames.size());
