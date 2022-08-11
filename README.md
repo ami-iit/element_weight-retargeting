@@ -37,4 +37,7 @@ Refer to the [Installation guide](Installation.md) for this point.
 
 ## Usage
 
-Please refer to the [Usage guide](Usage.md) for this point.
+Please refer to the following docs for this point:
+
+- [`WeightRetargetingModule`](src/WeightRetargeting/README.md)
+- [`WeightDisplayModule`](src/WeightDisplay/README.md)
