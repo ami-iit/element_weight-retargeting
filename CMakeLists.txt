@@ -4,5 +4,4 @@ project(weight-retargeting VERSION 0.1.0)
 include(GNUInstallDirs)
 
 add_subdirectory(src)
-add_subdirectory(conf)
 add_subdirectory(apps)
