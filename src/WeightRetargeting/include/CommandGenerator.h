@@ -18,7 +18,7 @@ public:
      * 
      * @param value 
      */
-    void update(double value);
+    virtual void update(double value);
     virtual double getCommand() = 0;
 
     virtual ~CommandGenerator() = default;
