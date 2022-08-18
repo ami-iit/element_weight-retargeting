@@ -13,6 +13,7 @@ namespace WeightRetargeting::patterns
 class WeightRetargeting::patterns::PulseFeedback : public WeightRetargeting::patterns::TimePattern
 {
 public:
+    PulseFeedback();
     ~PulseFeedback() = default;
 
     /**
@@ -28,8 +29,14 @@ public:
     void update(double value) override;
     double getCommand() override;
 private:
+    // configuration
     std::vector<double> levelThresholds;
     std::vector<double> frequencies; //TODO
+
+    // state
+    int level;
+    std::chrono::steady_clock::time_point cycleStart;
+    bool on;
 };
 
 #endif
