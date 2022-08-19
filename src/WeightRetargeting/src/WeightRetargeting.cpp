@@ -19,7 +19,7 @@
 
 #include "ActuatorsGroupFactory.h"
 
-#define WEIGHT_RETARGETING_MAX_INTENSITY 127
+#define WEIGHT_RETARGETING_MAX_INTENSITY 100
 
 class WeightRetargetingModule : public yarp::os::RFModule, WeightRetargetingService
 {
@@ -116,9 +116,15 @@ public:
 
     double computeActuationIntensity(const ActuatorGroupHelper& helper, const double norm)
     {
-        // generate command
-        helper.info.commandGenerator->update(norm);
-        double normalizedCommand = helper.info.commandGenerator->getCommand();
+        double command = norm;
+        // generate normalized value
+        helper.info.mapFunction->update(command);
+        command = helper.info.mapFunction->getCommand();
+        // generate time pattern command
+        helper.info.timePattern->update(command);
+        command = helper.info.timePattern->getCommand();
+        
+        double normalizedCommand = command;
         double actuationIntensity = -1;
         if(normalizedCommand>0)
         {
