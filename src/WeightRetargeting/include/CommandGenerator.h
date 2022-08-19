@@ -2,9 +2,11 @@
 #define WEIGHT_RETARGETING_COMMAND_GENERATOR_H
 
 #include <memory>
+#include <vector>
 
 namespace WeightRetargeting{
     class CommandGenerator;
+    class CommandGeneratorChain;
 }
 
 class WeightRetargeting::CommandGenerator
@@ -23,6 +25,20 @@ public:
 
     virtual ~CommandGenerator() = default;
 
+};
+
+
+class WeightRetargeting::CommandGeneratorChain : public CommandGenerator
+{
+public:
+    virtual void update(double value) override;
+    virtual double getCommand() override;
+
+    virtual ~CommandGeneratorChain() = default;
+
+    void addGenerator(CommandGenerator* generator);
+private:
+    std::vector<std::unique_ptr<CommandGenerator>> generators;
 };
 
 #endif
