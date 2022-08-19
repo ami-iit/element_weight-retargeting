@@ -18,7 +18,8 @@ struct WeightRetargeting::ActuatorsGroup
 {
     std::string name;
     std::vector<std::string> jointAxes;
-    std::unique_ptr<CommandGenerator> commandGenerator;
+    std::unique_ptr<CommandGenerator> mapFunction;
+    std::unique_ptr<CommandGenerator> timePattern;
     std::vector<std::string> actuators;
     double minThreshold;
     double maxThreshold;

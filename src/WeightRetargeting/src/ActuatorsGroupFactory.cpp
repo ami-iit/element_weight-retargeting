@@ -5,6 +5,9 @@
 #include "MappingFunctions/StepMappingFunction.h"
 #include "MappingFunctions/LinearMappingFunction.h"
 
+#include "TimePatterns/ContinuousFeedback.h"
+#include "TimePatterns/PulseFeedback.h"
+
 using namespace WeightRetargeting;
 
 const std::string ActuatorsGroupFactory::LINEAR_MAP_FUNCTION_NAME = "linear";
@@ -233,6 +236,7 @@ void ActuatorsGroupFactory::makeGroup()
     actuatorGroup.minThreshold = minThreshold;
     actuatorGroup.maxThreshold = maxThreshold;
 
+    // map function
     if(mapFunction==LINEAR_MAP_FUNCTION_NAME)
     {
         mapping::LinearMappingFunction *mapFunctionPtr = new mapping::LinearMappingFunction;
@@ -240,7 +244,7 @@ void ActuatorsGroupFactory::makeGroup()
         mapFunctionPtr->setMaxThreshold(maxThreshold);
         mapFunctionPtr->setMinThreshold(minThreshold);
 
-        actuatorGroup.commandGenerator.reset(mapFunctionPtr);
+        actuatorGroup.mapFunction.reset(mapFunctionPtr);
     }
     else if(mapFunction==STEP_MAP_FUNCTION_NAME)
     {
@@ -259,10 +263,28 @@ void ActuatorsGroupFactory::makeGroup()
         }
 
 
-        actuatorGroup.commandGenerator.reset(mapFunctionPtr);
+        actuatorGroup.mapFunction.reset(mapFunctionPtr);
     }
 
-    //TODO add time pattern 
+    if(timePattern==CONTINUOUS_TIME_PATTERN_NAME)
+    {
+        actuatorGroup.timePattern.reset(new patterns::ContinuousFeedback);
+    }
+    else if(timePattern==PULSE_TIME_PATTERN_NAME)
+    {
+        patterns::PulseFeedback* pulseFeedback = new patterns::PulseFeedback;
+
+        if(pulsePatternLevels!=-1)
+        {
+            pulseFeedback->makeFrequencies(pulsePatternLevels, pulsePatternMaxFrequency);
+        }
+        else
+        {
+            pulseFeedback->makeFrequencies(pulsePatternThresholds, pulsePatternFrequencies);
+        }
+
+        actuatorGroup.timePattern.reset(pulseFeedback);
+    }
 }
 
 WeightRetargeting::ActuatorsGroup& ActuatorsGroupFactory::getGroup(std::string& name)
