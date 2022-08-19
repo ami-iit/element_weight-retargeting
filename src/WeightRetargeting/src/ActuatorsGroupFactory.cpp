@@ -128,7 +128,7 @@ bool ActuatorsGroupFactory::parsePulseTimePattern(yarp::os::Bottle& configGroup)
     if(pulsePatternLevelsFound)
     {
         pulsePatternLevels = configGroup.find("pulse_pattern_levels").asInt32();
-        pulsePatternMaxFrequency = configGroup.find("pulse_pattern_levels").asFloat64();
+        pulsePatternMaxFrequency = configGroup.find("pulse_pattern_max_frequency").asFloat64();
     }
 
     //case 2 - explicit levels and frequencies
@@ -191,6 +191,12 @@ bool ActuatorsGroupFactory::parseFromConfig(yarp::os::Bottle& configGroup)
 
     // get map function
     if(!parseMapFunction(configGroup))
+    {
+        return false;
+    }
+
+    // get time pattern
+    if(!parseTimePattern(configGroup))
     {
         return false;
     }
