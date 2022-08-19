@@ -160,8 +160,8 @@ bool ActuatorsGroupFactory::parsePulseTimePattern(yarp::os::Bottle& configGroup)
         
     }
 
-    ACTUATORS_GROUP_PARSE_CHECK(pulsePatternLevelsFound!=pulsePatternThresholdsFound, 
-                                "Provide either the parameter pulse_pattern_levels and pulse_pattern_thresholds or neither of them in " + groupName)    
+    ACTUATORS_GROUP_PARSE_CHECK(pulsePatternLevelsFound && pulsePatternThresholdsFound || !pulsePatternLevelsFound && !pulsePatternThresholdsFound, 
+                                "Provide one between pulse_pattern_levels and pulse_pattern_thresholds and not both in group " + groupName)    
 
     return true;
 }
