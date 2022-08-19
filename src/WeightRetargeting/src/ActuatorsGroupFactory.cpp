@@ -11,6 +11,12 @@ const std::string ActuatorsGroupFactory::LINEAR_MAP_FUNCTION_NAME = "linear";
 const std::string ActuatorsGroupFactory::STEP_MAP_FUNCTION_NAME = "steps";
 const std::vector<std::string> ActuatorsGroupFactory::MAP_FUNCTIONS = {LINEAR_MAP_FUNCTION_NAME, STEP_MAP_FUNCTION_NAME};
 
+
+const std::string ActuatorsGroupFactory::CONTINUOUS_TIME_PATTERN_NAME = "continuous";
+const std::string ActuatorsGroupFactory::PULSE_TIME_PATTERN_NAME = "pulse";
+const std::vector<std::string> ActuatorsGroupFactory::TIME_PATTERNS = {CONTINUOUS_TIME_PATTERN_NAME, PULSE_TIME_PATTERN_NAME};
+
+
 ActuatorsGroupFactory::ActuatorsGroupFactory()
 {
     parseError = "";
@@ -101,6 +107,81 @@ bool ActuatorsGroupFactory::parseMapFunction(yarp::os::Bottle& configGroup)
     return true;
 }
 
+bool ActuatorsGroupFactory::parsePulseTimePattern(yarp::os::Bottle& configGroup)
+{
+    // reset related variables
+    pulsePatternLevels = -1;
+    pulsePatternMaxFrequency = 0.;
+    pulsePatternFrequencies.clear();
+    pulsePatternThresholds.clear();
+
+    // case 1 - auto generate levels
+    bool pulsePatternLevelsFound = configGroup.check("pulse_pattern_levels");
+    bool pulsePatternMaxFreqFound = configGroup.check("pulse_pattern_max_frequency");
+    
+    ACTUATORS_GROUP_PARSE_CHECK(pulsePatternLevelsFound!=pulsePatternMaxFreqFound, 
+                            "Provide both parameters pulse_pattern_levels and pulse_pattern_max_frequency or neither of them in " + groupName)
+
+    if(pulsePatternLevelsFound)
+    {
+        pulsePatternLevels = configGroup.find("pulse_pattern_levels").asInt32();
+        pulsePatternMaxFrequency = configGroup.find("pulse_pattern_levels").asFloat64();
+    }
+
+    //case 2 - explicit levels and frequencies
+    bool pulsePatternThresholdsFound = configGroup.check("pulse_pattern_thresholds");
+    bool pulsePatternFrequenciesFound = configGroup.check("pulse_pattern_frequencies");
+
+    ACTUATORS_GROUP_PARSE_CHECK(pulsePatternThresholdsFound!=pulsePatternFrequenciesFound, 
+                            "Provide both parameters pulse_pattern_thresholds and pulse_pattern_frequencies or neither of them in group " + groupName)
+
+    if(pulsePatternThresholdsFound)
+    {
+        auto pulsePatternThresholdsList = configGroup.find("pulse_pattern_thresholds").asList();
+        auto pulsePatternFrequenciesList = configGroup.find("pulse_pattern_frequencies").asList();
+
+        ACTUATORS_GROUP_PARSE_CHECK(pulsePatternThresholdsList==nullptr,
+                                "Parameter pulse_pattern_thresholds is not a list in group " + groupName)
+
+        ACTUATORS_GROUP_PARSE_CHECK(pulsePatternFrequenciesList==nullptr, 
+                                "Parameter pulse_pattern_frequencies is not a list in group " + groupName)
+        
+        ACTUATORS_GROUP_PARSE_CHECK(pulsePatternThresholdsList->size()!=pulsePatternFrequenciesList->size(), 
+                                "Parameters pulse_pattern_thresholds and pulse_pattern_frequencies must have the same size in group " + groupName)
+
+        for(int i = 0; i<pulsePatternThresholdsList->size(); i++)
+        {
+            pulsePatternThresholds.push_back(pulsePatternThresholdsList->get(i).asFloat64());
+            pulsePatternFrequencies.push_back(pulsePatternFrequenciesList->get(i).asFloat64());
+        }
+        
+    }
+
+    ACTUATORS_GROUP_PARSE_CHECK(pulsePatternLevelsFound!=pulsePatternThresholdsFound, 
+                                "Provide either the parameter pulse_pattern_levels and pulse_pattern_thresholds or neither of them in " + groupName)    
+
+    return true;
+}
+
+bool ActuatorsGroupFactory::parseTimePattern(yarp::os::Bottle& configGroup)
+{
+    // get time pattern function
+    ACTUATORS_GROUP_PARSE_CHECK(!configGroup.check("time_pattern"), 
+                                "Missing a valid time_pattern paramater in group " + groupName)
+    timePattern = configGroup.find("time_pattern").asString();
+
+    ACTUATORS_GROUP_PARSE_CHECK(
+        std::find(TIME_PATTERNS.begin(), TIME_PATTERNS.end(), timePattern)==TIME_PATTERNS.end(),
+        "Parameter time_pattern not in the accepted list of values (found " + timePattern + ")")
+
+    if(timePattern==PULSE_TIME_PATTERN_NAME && !parsePulseTimePattern(configGroup))
+    {
+        return false;
+    }
+    
+    return true;
+}
+
 bool ActuatorsGroupFactory::parseFromConfig(yarp::os::Bottle& configGroup)
 {
     groupName = configGroup.get(0).asString();
@@ -180,6 +261,8 @@ void ActuatorsGroupFactory::makeGroup()
 
         actuatorGroup.commandGenerator.reset(mapFunctionPtr);
     }
+
+    //TODO add time pattern 
 }
 
 WeightRetargeting::ActuatorsGroup& ActuatorsGroupFactory::getGroup(std::string& name)
