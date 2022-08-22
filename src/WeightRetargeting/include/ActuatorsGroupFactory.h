@@ -45,6 +45,7 @@ private:
     double pulsePatternMaxFrequency; // frequency of the highest level for pulse pattern
     std::vector<double> pulsePatternThresholds; // thresholds for the levels of the pulse pattern
     std::vector<double> pulsePatternFrequencies; // frequencies for the levels of the pulse pattern
+    double pulsePatternCustomActuation; // custom actuation value for the pulses
 
     // parsed structures
     std::unordered_map<std::string, ActuatorsGroup> parsedActuatorsGroups;

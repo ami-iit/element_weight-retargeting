@@ -161,7 +161,15 @@ bool ActuatorsGroupFactory::parsePulseTimePattern(yarp::os::Bottle& configGroup)
     }
 
     ACTUATORS_GROUP_PARSE_CHECK(pulsePatternLevelsFound && pulsePatternThresholdsFound || !pulsePatternLevelsFound && !pulsePatternThresholdsFound, 
-                                "Provide one between pulse_pattern_levels and pulse_pattern_thresholds and not both in group " + groupName)    
+                                "Provide one between pulse_pattern_levels and pulse_pattern_thresholds and not both in group " + groupName)
+
+    
+    // get pulse custom actuation
+    pulsePatternCustomActuation = -1.;
+    if(configGroup.check("pulse_pattern_custom_actuation"))
+    {
+        pulsePatternCustomActuation = configGroup.find("pulse_pattern_custom_actuation").asFloat64();
+    }
 
     return true;
 }
@@ -288,6 +296,8 @@ void ActuatorsGroupFactory::makeGroup()
         {
             pulseFeedback->makeFrequencies(pulsePatternThresholds, pulsePatternFrequencies);
         }
+
+        pulseFeedback->setCustomActuation(pulsePatternCustomActuation);
 
         actuatorGroup.timePattern.reset(pulseFeedback);
     }
