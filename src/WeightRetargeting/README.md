@@ -42,6 +42,7 @@ The group must have the following parameters:
 |steps_commands | if `map_function`=`steps` and `steps_number` is not defined | Normalized commands associated with each step | (0.4 0.5 0.8 1.0) |
 | | | |
 |time_pattern | :heavy_check_mark: | Function that handles the actuation in time depending on the value returned by the map function. Eligible values are `continuous` and `pulse`| "continuous" |
+|pulse_pattern_custom_actuation | :x: | The actuation value of the pulse. If negative (default) use the value given as input instead.| 0.5 |
 |pulse_pattern_levels | if `time_pattern`=`pulse`| The number of levels that determine the number of pulses per minute.| 3|
 |pulse_pattern_max_frequency | if `time_pattern`=`pulse` | The frequency of the pulses expressed in Hz | 0.5 |
 |pulse_pattern_thresholds | if `time_pattern`=`pulse` and `pulse_pattern_levels` is not defined| The thresholds used to define the start of the levels| (0.2 0.4 0.9)|
