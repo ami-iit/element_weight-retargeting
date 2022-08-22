@@ -19,7 +19,7 @@ void patterns::PulseFeedback::makeFrequencies(const int levels, const double max
     const double frequencyStep = maxFrequency/levels;
     double frequency = 0.0;
 
-    for(int i = levels; i>1 ; i++)
+    for(int i = levels; i>1 ; i--)
     {
         frequency += frequencyStep;
         levelThresholds.push_back(1.0/i);
