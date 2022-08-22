@@ -33,13 +33,19 @@ The group must have the following parameters:
 |---------------------|--|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------|
 | joint_axes | :heavy_check_mark: | The list of joint axes associated with this group of actuators | ("l_wrist_pitch" "l_wrist_yaw") |
 | actuators | :heavy_check_mark: | The list of the actuators associated with this group | ("13@1" "13@2" "13@4")|
+| | | |
 | map_function | :heavy_check_mark: | Function that maps the retargeted value into a normalized actuation value. Eligible values are `linear` and `steps`. | "linear"|
 |min_threshold| :heavy_check_mark: | Minimum input value accepted by the function| 0.45 | 
 |max_threshold| :heavy_check_mark: | Maximum input value accepted by the function| 1.5 |
 | steps_number | if `map_function`=`steps` and `steps_thresholds`,`steps_commands` are not defined| Number of steps of the map function | 5 | 
 | steps_thresholds | if `map_function`=`steps` and `steps_number` is not defined| List of input thresholds that define the steps |(0.2 0.5 0.8)|
 |steps_commands | if `map_function`=`steps` and `steps_number` is not defined | Normalized commands associated with each step | (0.4 0.5 0.8 1.0) |
-
+| | | |
+|time_pattern | :heavy_check_mark: | Function that handles the actuation in time depending on the value returned by the map function. Eligible values are `continuous` and `pulse`| "continuous" |
+|pulse_pattern_levels | if `time_pattern`=`pulse`| The number of levels that determine the number of pulses per minute.| 3|
+|pulse_pattern_max_frequency | if `time_pattern`=`pulse` | The frequency of the pulses expressed in Hz | 0.5 |
+|pulse_pattern_thresholds | if `time_pattern`=`pulse` and `pulse_pattern_levels` is not defined| The thresholds used to define the start of the levels| (0.2 0.4 0.9)|
+|pulse_pattern_frequencies | `time_pattern`=`pulse` and `pulse_pattern_levels` is not defined | The frequencies associated to the different levels, expressed in Hz| (0.5 1 2) |
 
 
 ## Running the module
