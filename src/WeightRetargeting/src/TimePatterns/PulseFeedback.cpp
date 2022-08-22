@@ -42,6 +42,11 @@ void patterns::PulseFeedback::makeFrequencies(std::vector<double> thresholds, st
     this->frequencies = frequencies;
 }
 
+void patterns::PulseFeedback::setCustomActuation(const double customActuation)
+{
+    this->customActuation = customActuation;
+}
+
 void patterns::PulseFeedback::update(double value)
 {
     TimePattern::update(value);
@@ -77,5 +82,15 @@ double patterns::PulseFeedback::getCommand()
         return 0.;
     }
 
-    return lastValue;
+    
+    if(customActuation<=0.)
+    {
+        // propagate input value
+        return lastValue;
+    }
+    else
+    {
+        return customActuation;
+    }
+    
 }
