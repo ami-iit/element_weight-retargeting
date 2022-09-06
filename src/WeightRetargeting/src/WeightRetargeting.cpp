@@ -19,8 +19,6 @@
 
 #include "ActuatorsGroupFactory.h"
 
-#define WEIGHT_RETARGETING_MAX_INTENSITY 100
-
 class WeightRetargetingModule : public yarp::os::RFModule, WeightRetargetingService
 {
 public:
@@ -130,7 +128,7 @@ public:
         {
             if(normalizedCommand>1.0) normalizedCommand = 1.0;
 
-            actuationIntensity = (int)(normalizedCommand*WEIGHT_RETARGETING_MAX_INTENSITY);
+            actuationIntensity = normalizedCommand;
         }
         return actuationIntensity;
     }
