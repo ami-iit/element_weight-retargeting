@@ -254,7 +254,6 @@ public:
                     wearableActuatorCommand.value = actuationIntensity;
                     wearableActuatorCommand.info.name = IFEEL_SUIT_ACTUATOR_PREFIX+actuator;;
                     wearableActuatorCommand.info.type = wearable::msg::ActuatorType::HAPTIC;
-                    wearableActuatorCommand.info.status = wearable::msg::ActuatorStatus::OK;
                     wearableActuatorCommand.duration = 0;
 
                     // Send haptic actuator command
