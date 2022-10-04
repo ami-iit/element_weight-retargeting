@@ -77,9 +77,11 @@ public:
         }
 
         // sum forces
-        double forces = 0.0;
+        double weightSum = 0.0;
         for(auto const & port : inputPorts)
         {
+            double weight = 0.0;
+            double force = 0.0;
             // check on the velocity
             bool readFromPort = true;
             if(velocityHelper.useVelocity)
@@ -97,7 +99,7 @@ public:
             // add the force if the velocity check is passed
             if(readFromPort)
             {
-                yarp::sig::Vector* wrench = port->read();
+                yarp::sig::Vector* wrench = port->read(false);
                 if(wrench==nullptr)
                 {
                     continue;
@@ -106,7 +108,7 @@ public:
                 if(useOnlyZ)
                 {
                     if((*wrench)[2]<0)
-                        forces += -(*wrench)[2];
+                        force += -(*wrench)[2];
                 }
                 else //use norm
                 {
@@ -114,22 +116,26 @@ public:
                     for(int i = 0; i<3; i++)
                         norm += (*wrench)[i]*(*wrench)[i];
                     norm = sqrt(norm);
-                    forces += norm;
+                    force += norm;
                 }
-                
+
+                weight = force/GRAVITY_ACCELERATION - weightOffset;
+
+                if(weight<0)
+                    continue;
+
+                weightSum += + weight;
+
             }
             
         }
 
-        // calculate weight
-        double weight = forces/GRAVITY_ACCELERATION - weightOffset;
-
         // write to port
-        if(weight>=minWeight)
+        if(weightSum>=minWeight)
         {
             // use stringstream to fix number of fractional digits
             std::ostringstream stream;
-            stream << std::fixed << std::setprecision(FRACTIONAL_DIGITS)<<weight;
+            stream << std::fixed << std::setprecision(FRACTIONAL_DIGITS)<<weightSum;
 
             yarp::os::Bottle& weightLabelMessage = outPort.prepare();
             weightLabelMessage.clear();
