@@ -99,12 +99,8 @@ public:
             // add the force if the velocity check is passed
             if(readFromPort)
             {
-                yarp::sig::Vector* wrench = port->read(false);
-                if(wrench==nullptr)
-                {
-                    continue;
-                }
-
+                yarp::sig::Vector* wrench = port->read(true);
+ 
                 if(useOnlyZ)
                 {
                     if((*wrench)[2]<0)
