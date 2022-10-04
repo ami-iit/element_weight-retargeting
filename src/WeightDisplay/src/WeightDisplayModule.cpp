@@ -27,6 +27,7 @@ public:
     double period = 0.02; //Default 50Hz
 
     double minWeight = 0.0; // minimum weight to be displayed
+    double weightOffset = 0.0; // weight offset due to measurements
 
     bool useOnlyZ = false;
 
@@ -121,7 +122,7 @@ public:
         }
 
         // calculate weight
-        double weight = forces/GRAVITY_ACCELERATION;
+        double weight = forces/GRAVITY_ACCELERATION - weightOffset;
 
         // write to port
         if(weight>=minWeight)
@@ -294,6 +295,14 @@ public:
             minWeight = rf.find("min_weight").asFloat64();
             yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter min_weight:" << minWeight;
         }
+
+        // read weight_offset
+        if(!rf.check("weight_offset"))
+        {
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter weight_offset from configuration";
+        }
+        weightOffset = rf.check("weight_offset", yarp::os::Value(0.0)).asFloat64();
+        yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Using parameter weight_offset:"<<weightOffset;
 
         // read use_z_only
         if(!rf.check("use_z_only"))
