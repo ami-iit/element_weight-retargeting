@@ -2,6 +2,7 @@
 #include <unordered_map>
 #include <memory>
 #include <iomanip>
+#include <math.h>
 
 #include <yarp/os/Network.h>
 #include <yarp/os/RFModule.h>
@@ -26,6 +27,8 @@ public:
     double period = 0.02; //Default 50Hz
 
     double minWeight = 0.0; // minimum weight to be displayed
+
+    bool useOnlyZ = false;
 
     // input port
     std::vector<std::string> inputPortNames;
@@ -72,8 +75,8 @@ public:
             return true;
         }
 
-        // sum z-axis forces
-        double zForce = 0.0;
+        // sum forces
+        double forces = 0.0;
         for(auto const & port : inputPorts)
         {
             // check on the velocity
@@ -93,15 +96,32 @@ public:
             // add the force if the velocity check is passed
             if(readFromPort)
             {
-                yarp::sig::Vector* wrench = port->read(false);
-                if(wrench!=nullptr && (*wrench)[2]<0)
-                    zForce += -(*wrench)[2];
+                yarp::sig::Vector* wrench = port->read();
+                if(wrench==nullptr)
+                {
+                    continue;
+                }
+
+                if(useOnlyZ)
+                {
+                    if((*wrench)[2]<0)
+                        forces += -(*wrench)[2];
+                }
+                else //use norm
+                {
+                    double norm = 0;
+                    for(int i = 0; i<3; i++)
+                        norm += (*wrench)[i]*(*wrench)[i];
+                    norm = sqrt(norm);
+                    forces += norm;
+                }
+                
             }
             
         }
 
         // calculate weight
-        double weight = zForce/GRAVITY_ACCELERATION;
+        double weight = forces/GRAVITY_ACCELERATION;
 
         // write to port
         if(weight>=minWeight)
@@ -274,6 +294,14 @@ public:
             minWeight = rf.find("min_weight").asFloat64();
             yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter min_weight:" << minWeight;
         }
+
+        // read use_z_only
+        if(!rf.check("use_z_only"))
+        {
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter use_z_only from configuration";
+        }
+        useOnlyZ = rf.check("use_z_only", yarp::os::Value(false)).asBool();
+        yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Using parameter use_z_only:"<<useOnlyZ;
 
         // read velocity info
         return readVelocityInfoGroup(rf);
