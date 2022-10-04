@@ -124,7 +124,7 @@ public:
                 if(weight<0)
                     continue;
 
-                weightSum += + weight;
+                weightSum += weight;
 
             }
             
