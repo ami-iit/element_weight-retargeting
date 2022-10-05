@@ -7,7 +7,8 @@ target_link_libraries(WeightDisplayModule PRIVATE
         YARP::YARP_OS
         YARP::YARP_init
         YARP::YARP_sig
-        YARP::YARP_dev)
+        YARP::YARP_dev
+        filters)
 
 # Install the modules
 install(TARGETS WeightRetargetingModule WeightDisplayModule

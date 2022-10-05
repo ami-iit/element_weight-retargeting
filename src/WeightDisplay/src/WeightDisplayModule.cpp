@@ -13,18 +13,21 @@
 #include <yarp/dev/PolyDriver.h>
 #include <yarp/dev/IEncodersTimed.h>
 
+#include "filters/SecondOrderLowPass.h"
 #include "WeightRetargetingLogComponent.h"
 
 class WeightDisplayModule : public yarp::os::RFModule
 {
 public:
 
-    const std::string LOG_PREFIX = "DisplayModule"; 
+    const std::string LOG_PREFIX = "DisplayModule";
 
     const double GRAVITY_ACCELERATION = 9.81;
-    const int FRACTIONAL_DIGITS = 1; // Number of digits of the weight's fractional part  
+    const int FRACTIONAL_DIGITS = 1; // Number of digits of the weight's fractional part
 
     double period = 0.02; //Default 50Hz
+    double cutoffFrequency = 1; // Default 1Hz
+    int lengthWrenchVector = 6; // length of wrench vector
 
     double minWeight = 0.0; // minimum weight to be displayed
     double weightOffset = 0.0; // weight offset due to measurements
@@ -55,6 +58,9 @@ public:
 
     VelocityHelper velocityHelper;
     std::vector<double> jointVelBuffer;
+
+    // Low pass filter
+    SecondOrderLowPassFilter lowPassFilter;
 
     double getPeriod() override
     {
@@ -108,9 +114,11 @@ public:
                 }
                 else //use norm
                 {
+                    // filter forces
+                    yarp::sig::Vector filteredWrench = lowPassFilter.filt(*wrench);
                     double norm = 0;
                     for(int i = 0; i<3; i++)
-                        norm += (*wrench)[i]*(*wrench)[i];
+                        norm += (filteredWrench)[i]*(filteredWrench)[i];
                     norm = sqrt(norm);
                     force += norm;
                 }
@@ -252,17 +260,27 @@ public:
         if(!rf.check("period"))
         {
             yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter period, using default value" << period;
-        } else 
+        } else
         {
             period = rf.find("period").asFloat64();
             yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter period:" << period;
+        }
+
+        // read cutoff frequency param
+        if(!rf.check("cutoff_frequency"))
+        {
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter period, using default value" << cutoffFrequency;
+        } else
+        {
+            cutoffFrequency = rf.find("cutoff_frequency").asFloat64();
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter period:" << cutoffFrequency;
         }
 
         // read port_prefix param
         if(!rf.check("port_prefix"))
         {
             yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter port_prefix, using default value:" << portPrefix;
-        } else 
+        } else
         {
             portPrefix = rf.find("port_prefix").asString();
             yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter port_prefix:" << portPrefix;
@@ -382,6 +400,10 @@ public:
                 return false;
             }
         }
+
+        // Initialize low-pass filter
+        // The filter will filter vectors with length = 3 [fx, fy, fz]
+        lowPassFilter.init(cutoffFrequency, 1/period, lengthWrenchVector);
 
         yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT,  LOG_PREFIX) << "Module started successfully!";
 
