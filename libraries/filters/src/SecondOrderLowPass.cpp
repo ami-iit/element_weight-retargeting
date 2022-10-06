@@ -39,8 +39,8 @@ bool SecondOrderLowPassFilter::init(const double cutFrequency,
 
     for (int i = 0; i < 2; i++)
     {
-        u_old[i].resize(dimension);
-        y_old[i].resize(dimension);
+        u_old[i] = Eigen::VectorXd::Zero(dimension);
+        y_old[i] = Eigen::VectorXd::Zero(dimension);
     }
 
     return true;
