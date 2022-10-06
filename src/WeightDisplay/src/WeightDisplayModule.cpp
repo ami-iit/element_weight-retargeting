@@ -23,12 +23,12 @@ public:
 
     const std::string LOG_PREFIX = "DisplayModule";
 
-    const double GRAVITY_ACCELERATION = 9.81;
+    const double GRAVITY_ACCELERATION = 9.8067;
     const int FRACTIONAL_DIGITS = 1; // Number of digits of the weight's fractional part
 
     double period = 0.02; //Default 50Hz
     double cutoffFrequency = 1; // Default 1Hz
-    int lengthWrenchVector = 6; // length of wrench vector
+    int lengthWrenchVector = 3; // length of wrench vector
 
     double minWeight = 0.0; // minimum weight to be displayed
     double weightOffset = 0.0; // weight offset due to measurements
@@ -38,10 +38,6 @@ public:
     // ft port
     std::vector<std::string> ftPortNames;
     std::vector<std::unique_ptr<yarp::os::BufferedPort<yarp::sig::Vector>>> ftPorts;
-
-    // cartesian port
-    std::vector<std::string> cartesianPortNames;
-    std::vector<std::unique_ptr<yarp::os::BufferedPort<yarp::sig::Vector>>> cartesianPorts;
 
     // output port
     std::string portPrefix = "/WeightDisplay";
@@ -81,11 +77,6 @@ public:
                 yCIWarning(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "No inputs on port" << ftPorts[i]->getName();
                 return true;
             }
-            if(cartesianPorts[i]->getInputCount()==0)
-            {
-                yCIWarning(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "No inputs on port" << cartesianPorts[i]->getName();
-                return true;
-            }
         }
 
 
@@ -104,22 +95,9 @@ public:
 
         // read ports
         std::vector<yarp::sig::Vector> ftWrenches;
-        std::vector<yarp::sig::Vector> cartesianWrenches;
 
         for (int i = 0; i < ftPorts.size(); i++)
         {
-            std::cerr << "Reading from " << cartesianPortNames[i] << std::endl;
-
-            yarp::sig::Vector * tempCartesianWrench = ftPorts[i]->read(true);
-            if (tempCartesianWrench == nullptr)
-            {
-                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Port " << cartesianPorts[i]->getName() << " empty";
-                return false;
-            }
-            cartesianWrenches.push_back(*tempCartesianWrench);
-
-            std::cerr << "Reading from " << ftPortNames[i] << std::endl;
-
             yarp::sig::Vector * tempftWrench = ftPorts[i]->read(true);
             if (tempftWrench == nullptr)
             {
@@ -129,11 +107,9 @@ public:
             ftWrenches.push_back(*tempftWrench);
         }
 
-        std::cerr << "Post read" << std::endl;
-
         // sum forces
         double weightSum = 0.0;
-        for(int i = 0; i < ftPorts.size(); i++)
+        for(int ftIdx = 0; ftIdx < ftPorts.size(); ftIdx++)
         {
             double weight = 0.0;
             double force = 0.0;
@@ -141,55 +117,36 @@ public:
             bool readFromPort = true;
             if(velocityHelper.useVelocity)
             {
-                auto const& jointsIndices = velocityHelper.portToJoints[ftPorts[i]->getName()];
-                for(int i=0; i<jointsIndices.size(); i++)
+                auto const& jointsIndices = velocityHelper.portToJoints[ftPorts[ftIdx]->getName()];
+                for(int jntIdx=0; jntIdx<jointsIndices.size(); jntIdx++)
                 {
-                    if(jointVelBuffer[jointsIndices[i]]>velocityHelper.maxVelocity)
+                    if(jointVelBuffer[jointsIndices[jntIdx]]>velocityHelper.maxVelocity)
                     {
                         readFromPort = false;
                     }
                 }
             }
 
-            std::cerr << "Sono nel for " << std::endl;
-
             // add the force if the velocity check is passed
             if(readFromPort)
             {
-                std::cerr << "Sono nell'if" << std::endl;
-
                 if(useOnlyZ)
                 {
-                    if((cartesianWrenches[i])[2]<0)
-                        force += -(cartesianWrenches[i])[2];
+                    if((ftWrenches[ftIdx])[2]<0)
+                        force = -(ftWrenches[ftIdx])[2];
 
                     weight = force/GRAVITY_ACCELERATION;
                 }
                 else //use norm
                 {
-                    std::cerr << "cartesian wrench z  " << cartesianWrenches[i][2] << std::endl;
-                    std::cerr << "FT measure  " << ftWrenches[i].toString() << std::endl;
+                    // filter forces
+                    yarp::sig::Vector filteredWrench = lowPassFilter.filt(ftWrenches[ftIdx]);
 
-                    if (cartesianWrenches[i][2] < 0)
+                    if (filteredWrench[2] < (weightOffset + minWeight) * (-GRAVITY_ACCELERATION))
                     {
-                        // filter forces
-                        yarp::sig::Vector filteredWrench = lowPassFilter.filt(ftWrenches[i]);
-
-                        std::cerr << "FT filtered  " << filteredWrench.toString() << std::endl;
-
-                        // compute norm
-                        double norm = 0;
-                        for(int i = 0; i<3; i++)
-                            norm += (filteredWrench)[i]*(filteredWrench)[i];
-                        norm = sqrt(norm);
-                        force += norm;
+                        force = - filteredWrench[2];
 
                         weight = force/GRAVITY_ACCELERATION - weightOffset;
-
-                        std::cerr << "Weight  " << weight << std::endl;
-
-                        if(weight<0)
-                            continue;
                     }
                 }
 
@@ -369,7 +326,6 @@ public:
             std::string portName = inputPortNamesBottle->get(i).asString();
             yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found input port name:"<<portName;
             ftPortNames.push_back(portPrefix+"/"+portName+"_ft:i");
-            cartesianPortNames.push_back(portPrefix+"/"+portName+"_cartesian:i");
         }
 
         // read min_weight
@@ -420,19 +376,6 @@ public:
             if(!ftPorts[ftPortIdx++]->open(portName))
             {
                 yCError(WEIGHT_RETARGETING_LOG_COMPONENT)<<"Unable to open ft port:"<< portName;
-                return false;
-            }
-        }
-
-        // open cartesian ports
-        int cartesianPortIdx = 0;
-        cartesianPorts.reserve(cartesianPortNames.size());
-        for(const std::string& portName : cartesianPortNames)
-        {
-            cartesianPorts.push_back(std::make_unique<yarp::os::BufferedPort<yarp::sig::Vector>>());
-            if(!cartesianPorts[cartesianPortIdx++]->open(portName))
-            {
-                yCError(WEIGHT_RETARGETING_LOG_COMPONENT)<<"Unable to open cartesian port:"<< portName;
                 return false;
             }
         }
@@ -493,9 +436,6 @@ public:
     {
         // close input ports
         for(auto & port : ftPorts)
-            port->close();
-
-        for(auto & port : cartesianPorts)
             port->close();
 
         // close the control board remapper

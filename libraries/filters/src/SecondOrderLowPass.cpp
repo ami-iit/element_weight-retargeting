@@ -86,12 +86,12 @@ yarp::sig::Vector SecondOrderLowPassFilter::filt(yarp::sig::Vector u)
 {
     yarp::sig::Vector y_yarp;
 
-    Eigen::Vector3d y_eigen;
+    Eigen::VectorXd y_eigen;
 
     y_eigen = filt(yarp::eigen::toEigen(u));
 
-    y_yarp.resize(3);
-    for (int i = 0; i < 3; i++)
+    y_yarp.reserve(y_eigen.size());
+    for (int i = 0; i < y_eigen.size(); i++)
     {
         y_yarp.push_back(y_eigen[i]);
     }
