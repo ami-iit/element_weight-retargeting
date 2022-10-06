@@ -44,6 +44,10 @@ public:
     std::string outPortName;
     yarp::os::BufferedPort<yarp::os::Bottle> outPort;
 
+    std::vector<std::string> ftPortNamesOut;
+    std::vector<std::unique_ptr<yarp::os::BufferedPort<yarp::os::Bottle>>> outPortSingleFTs;
+
+
     //use velocity info
     struct VelocityHelper
     {
@@ -96,15 +100,17 @@ public:
         // read ports
         std::vector<yarp::sig::Vector> ftWrenches;
 
-        for (int i = 0; i < ftPorts.size(); i++)
+        ftWrenches.resize(ftPorts.size());
+
+        for (int ftIdx = 0; ftIdx < ftPorts.size(); ftIdx++)
         {
-            yarp::sig::Vector * tempftWrench = ftPorts[i]->read(true);
+            yarp::sig::Vector * tempftWrench = ftPorts[ftIdx]->read(true);
             if (tempftWrench == nullptr)
             {
-                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Port " << ftPorts[i]->getName() << " empty";
+                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Port " << ftPorts[ftIdx]->getName() << " empty";
                 return false;
             }
-            ftWrenches.push_back(*tempftWrench);
+            ftWrenches[ftIdx] = (*tempftWrench);
         }
 
         // sum forces
@@ -150,6 +156,18 @@ public:
                     }
                 }
 
+                if (weight > minWeight)
+                {
+                    // use stringstream to fix number of fractional digits
+                    std::ostringstream stream;
+                    stream << std::fixed << std::setprecision(FRACTIONAL_DIGITS) << weight;
+
+                    yarp::os::Bottle& weightLabelMessage = outPortSingleFTs[ftIdx]->prepare();
+                    weightLabelMessage.clear();
+                    weightLabelMessage.addString(stream.str());
+                    outPortSingleFTs[ftIdx]->write(false);
+                }
+
                 weightSum += weight;
 
             }
@@ -157,7 +175,7 @@ public:
         }
 
         // write to port
-        if(weightSum>=minWeight)
+        if(weightSum > minWeight)
         {
             // use stringstream to fix number of fractional digits
             std::ostringstream stream;
@@ -326,6 +344,7 @@ public:
             std::string portName = inputPortNamesBottle->get(i).asString();
             yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found input port name:"<<portName;
             ftPortNames.push_back(portPrefix+"/"+portName+"_ft:i");
+            ftPortNamesOut.push_back(portPrefix+"/"+portName+"_weight:o");
         }
 
         // read min_weight
@@ -368,20 +387,28 @@ public:
         }
 
         // open ft ports
-        int ftPortIdx = 0;
         ftPorts.reserve(ftPortNames.size());
-        for(const std::string& portName : ftPortNames)
+        outPortSingleFTs.reserve(ftPortNames.size());
+
+        for(int ftPortIdx = 0; ftPortIdx < ftPortNames.size(); ftPortIdx++)
         {
             ftPorts.push_back(std::make_unique<yarp::os::BufferedPort<yarp::sig::Vector>>());
-            if(!ftPorts[ftPortIdx++]->open(portName))
+            if(!ftPorts[ftPortIdx]->open(ftPortNames[ftPortIdx]))
             {
-                yCError(WEIGHT_RETARGETING_LOG_COMPONENT)<<"Unable to open ft port:"<< portName;
+                yCError(WEIGHT_RETARGETING_LOG_COMPONENT)<<"Unable to open ft port:"<< ftPortNames[ftPortIdx];
+                return false;
+            }
+
+            outPortSingleFTs.push_back(std::make_unique<yarp::os::BufferedPort<yarp::os::Bottle>>());
+            if(!outPortSingleFTs[ftPortIdx]->open(ftPortNamesOut[ftPortIdx]))
+            {
+                yCError(WEIGHT_RETARGETING_LOG_COMPONENT)<<"Unable to open output ft port:"<< ftPortNamesOut[ftPortIdx];
                 return false;
             }
         }
 
         // open output port
-        outPortName = portPrefix+"/out:o";
+        outPortName = portPrefix+"/total_weight:o";
         if(!outPort.open(outPortName))
         {
             yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Unable to open output port:"<< outPortName;
@@ -452,6 +479,11 @@ public:
 
         // close output port
         outPort.close();
+
+        for (auto & port : outPortSingleFTs)
+        {
+            port->close();
+        }
 
         return true;
     }
