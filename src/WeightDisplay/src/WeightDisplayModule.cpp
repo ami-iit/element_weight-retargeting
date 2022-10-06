@@ -61,7 +61,7 @@ public:
     std::vector<double> jointVelBuffer;
 
     // Low pass filter
-    SecondOrderLowPassFilter lowPassFilter;
+    std::vector<SecondOrderLowPassFilter> lowPassFilters;
 
     double getPeriod() override
     {
@@ -140,7 +140,7 @@ public:
                 else //use norm
                 {
                     // filter forces
-                    yarp::sig::Vector filteredWrench = lowPassFilter.filt(ftWrenches[ftIdx]);
+                    yarp::sig::Vector filteredWrench = lowPassFilters[ftIdx].filt(ftWrenches[ftIdx]);
 
                     if (filteredWrench[2] < (weightOffset + minWeight) * (-GRAVITY_ACCELERATION))
                     {
@@ -425,7 +425,13 @@ public:
 
         // Initialize low-pass filter
         // The filter will filter vectors with length = 3 [fx, fy, fz]
-        lowPassFilter.init(cutoffFrequency, 1/period, lengthWrenchVector);
+        lowPassFilters.reserve(ftPortNames.size());
+        for (int idx = 0; idx < ftPortNames.size(); idx++)
+        {
+            SecondOrderLowPassFilter filter;
+            filter.init(cutoffFrequency, 1/period, lengthWrenchVector);
+            lowPassFilters.push_back(filter);
+        }
 
         yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT,  LOG_PREFIX) << "Module started successfully!";
 
