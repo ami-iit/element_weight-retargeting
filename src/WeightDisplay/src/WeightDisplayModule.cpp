@@ -3,6 +3,7 @@
 #include <memory>
 #include <iomanip>
 #include <math.h>
+#include <iostream>
 
 #include <yarp/os/Network.h>
 #include <yarp/os/RFModule.h>
@@ -34,9 +35,13 @@ public:
 
     bool useOnlyZ = false;
 
-    // input port
-    std::vector<std::string> inputPortNames;
-    std::vector<std::unique_ptr<yarp::os::BufferedPort<yarp::sig::Vector>>> inputPorts;
+    // ft port
+    std::vector<std::string> ftPortNames;
+    std::vector<std::unique_ptr<yarp::os::BufferedPort<yarp::sig::Vector>>> ftPorts;
+
+    // cartesian port
+    std::vector<std::string> cartesianPortNames;
+    std::vector<std::unique_ptr<yarp::os::BufferedPort<yarp::sig::Vector>>> cartesianPorts;
 
     // output port
     std::string portPrefix = "/WeightDisplay";
@@ -69,6 +74,21 @@ public:
 
     bool updateModule() override
     {
+        for (int i = 0; i < ftPorts.size(); i++)
+        {
+            if(ftPorts[i]->getInputCount()==0)
+            {
+                yCIWarning(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "No inputs on port" << ftPorts[i]->getName();
+                return true;
+            }
+            if(cartesianPorts[i]->getInputCount()==0)
+            {
+                yCIWarning(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "No inputs on port" << cartesianPorts[i]->getName();
+                return true;
+            }
+        }
+
+
         bool getVelocityResult = false;
         if(velocityHelper.useVelocity)
         {
@@ -82,9 +102,38 @@ public:
             return true;
         }
 
+        // read ports
+        std::vector<yarp::sig::Vector> ftWrenches;
+        std::vector<yarp::sig::Vector> cartesianWrenches;
+
+        for (int i = 0; i < ftPorts.size(); i++)
+        {
+            std::cerr << "Reading from " << cartesianPortNames[i] << std::endl;
+
+            yarp::sig::Vector * tempCartesianWrench = ftPorts[i]->read(true);
+            if (tempCartesianWrench == nullptr)
+            {
+                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Port " << cartesianPorts[i]->getName() << " empty";
+                return false;
+            }
+            cartesianWrenches.push_back(*tempCartesianWrench);
+
+            std::cerr << "Reading from " << ftPortNames[i] << std::endl;
+
+            yarp::sig::Vector * tempftWrench = ftPorts[i]->read(true);
+            if (tempftWrench == nullptr)
+            {
+                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Port " << ftPorts[i]->getName() << " empty";
+                return false;
+            }
+            ftWrenches.push_back(*tempftWrench);
+        }
+
+        std::cerr << "Post read" << std::endl;
+
         // sum forces
         double weightSum = 0.0;
-        for(auto const & port : inputPorts)
+        for(int i = 0; i < ftPorts.size(); i++)
         {
             double weight = 0.0;
             double force = 0.0;
@@ -92,7 +141,7 @@ public:
             bool readFromPort = true;
             if(velocityHelper.useVelocity)
             {
-                auto const& jointsIndices = velocityHelper.portToJoints[port->getName()];  
+                auto const& jointsIndices = velocityHelper.portToJoints[ftPorts[i]->getName()];
                 for(int i=0; i<jointsIndices.size(); i++)
                 {
                     if(jointVelBuffer[jointsIndices[i]]>velocityHelper.maxVelocity)
@@ -102,36 +151,52 @@ public:
                 }
             }
 
+            std::cerr << "Sono nel for " << std::endl;
+
             // add the force if the velocity check is passed
             if(readFromPort)
             {
-                yarp::sig::Vector* wrench = port->read(true);
- 
+                std::cerr << "Sono nell'if" << std::endl;
+
                 if(useOnlyZ)
                 {
-                    if((*wrench)[2]<0)
-                        force += -(*wrench)[2];
+                    if((cartesianWrenches[i])[2]<0)
+                        force += -(cartesianWrenches[i])[2];
+
+                    weight = force/GRAVITY_ACCELERATION;
                 }
                 else //use norm
                 {
-                    // filter forces
-                    yarp::sig::Vector filteredWrench = lowPassFilter.filt(*wrench);
-                    double norm = 0;
-                    for(int i = 0; i<3; i++)
-                        norm += (filteredWrench)[i]*(filteredWrench)[i];
-                    norm = sqrt(norm);
-                    force += norm;
+                    std::cerr << "cartesian wrench z  " << cartesianWrenches[i][2] << std::endl;
+                    std::cerr << "FT measure  " << ftWrenches[i].toString() << std::endl;
+
+                    if (cartesianWrenches[i][2] < 0)
+                    {
+                        // filter forces
+                        yarp::sig::Vector filteredWrench = lowPassFilter.filt(ftWrenches[i]);
+
+                        std::cerr << "FT filtered  " << filteredWrench.toString() << std::endl;
+
+                        // compute norm
+                        double norm = 0;
+                        for(int i = 0; i<3; i++)
+                            norm += (filteredWrench)[i]*(filteredWrench)[i];
+                        norm = sqrt(norm);
+                        force += norm;
+
+                        weight = force/GRAVITY_ACCELERATION - weightOffset;
+
+                        std::cerr << "Weight  " << weight << std::endl;
+
+                        if(weight<0)
+                            continue;
+                    }
                 }
-
-                weight = force/GRAVITY_ACCELERATION - weightOffset;
-
-                if(weight<0)
-                    continue;
 
                 weightSum += weight;
 
             }
-            
+
         }
 
         // write to port
@@ -157,10 +222,10 @@ public:
         {
             // use default
             yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Group VELOCITY_UTILS not found, velocity information will not be used";
-            return true; 
+            return true;
         }
 
-        // read use_velocity 
+        // read use_velocity
         if(!velocityUtilsGroup.check("use_velocity"))
         {
             // use default
@@ -211,7 +276,7 @@ public:
         for(int i=0;i<remoteBoardsBottle->size();i++)
         {
             std::string remoteBoard = remoteBoardsBottle->get(i).asString();\
-            if(remoteBoard[0]!='/') remoteBoard = "/" + remoteBoard; 
+            if(remoteBoard[0]!='/') remoteBoard = "/" + remoteBoard;
 
             velocityHelper.remoteBoards.push_back(remoteBoard);
         }
@@ -230,7 +295,7 @@ public:
         }
         for(int i=0;i<jointsInfoBottle->size();i++)
         {
-            yarp::os::Bottle* infoBottle = jointsInfoBottle->get(i).asList(); 
+            yarp::os::Bottle* infoBottle = jointsInfoBottle->get(i).asList();
             if(infoBottle->size()<2)
             {
                 yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Bad joints_info format!";
@@ -298,12 +363,13 @@ public:
             yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Parameter input_port_names is empty!";
             return false;
         }
-        
+
         for(int i=0; i<inputPortNamesBottle->size(); i++)
         {
             std::string portName = inputPortNamesBottle->get(i).asString();
             yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found input port name:"<<portName;
-            inputPortNames.push_back(portPrefix+"/"+portName+":i");
+            ftPortNames.push_back(portPrefix+"/"+portName+"_ft:i");
+            cartesianPortNames.push_back(portPrefix+"/"+portName+"_cartesian:i");
         }
 
         // read min_weight
@@ -345,15 +411,28 @@ public:
             return false;
         }
 
-        // open input ports
-        int inputPortIdx = 0;
-        inputPorts.reserve(inputPortNames.size());
-        for(const std::string& portName : inputPortNames)
+        // open ft ports
+        int ftPortIdx = 0;
+        ftPorts.reserve(ftPortNames.size());
+        for(const std::string& portName : ftPortNames)
         {
-            inputPorts.push_back(std::make_unique<yarp::os::BufferedPort<yarp::sig::Vector>>());
-            if(!inputPorts[inputPortIdx++]->open(portName))
+            ftPorts.push_back(std::make_unique<yarp::os::BufferedPort<yarp::sig::Vector>>());
+            if(!ftPorts[ftPortIdx++]->open(portName))
             {
-                yCError(WEIGHT_RETARGETING_LOG_COMPONENT)<<"Unable to open input port:"<< portName;
+                yCError(WEIGHT_RETARGETING_LOG_COMPONENT)<<"Unable to open ft port:"<< portName;
+                return false;
+            }
+        }
+
+        // open cartesian ports
+        int cartesianPortIdx = 0;
+        cartesianPorts.reserve(cartesianPortNames.size());
+        for(const std::string& portName : cartesianPortNames)
+        {
+            cartesianPorts.push_back(std::make_unique<yarp::os::BufferedPort<yarp::sig::Vector>>());
+            if(!cartesianPorts[cartesianPortIdx++]->open(portName))
+            {
+                yCError(WEIGHT_RETARGETING_LOG_COMPONENT)<<"Unable to open cartesian port:"<< portName;
                 return false;
             }
         }
@@ -413,7 +492,10 @@ public:
     bool close() override
     {
         // close input ports
-        for(auto & port : inputPorts)
+        for(auto & port : ftPorts)
+            port->close();
+
+        for(auto & port : cartesianPorts)
             port->close();
 
         // close the control board remapper
@@ -424,7 +506,7 @@ public:
 
         // close output port
         outPort.close();
-        
+
         return true;
     }
 
