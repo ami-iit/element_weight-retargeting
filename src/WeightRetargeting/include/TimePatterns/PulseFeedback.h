@@ -38,7 +38,7 @@ public:
 private:
     // configuration
     std::vector<double> levelThresholds;
-    std::vector<double> frequencies; //TODO
+    std::vector<double> periods; //TODO
     double customActuation = -1.;
 
     // state

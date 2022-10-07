@@ -13,7 +13,7 @@ patterns::PulseFeedback::PulseFeedback():TimePattern()
 
 void patterns::PulseFeedback::makeFrequencies(const int levels, const double maxFrequency)
 {
-    frequencies.clear();
+    periods.clear();
     levelThresholds.clear();
 
     const double frequencyStep = maxFrequency/levels;
@@ -23,7 +23,7 @@ void patterns::PulseFeedback::makeFrequencies(const int levels, const double max
     {
         frequency += frequencyStep;
         levelThresholds.push_back(1.0/i);
-        frequencies.push_back(1000/frequency);
+        periods.push_back(1000/frequency);
     }
 }
 
@@ -31,15 +31,15 @@ void patterns::PulseFeedback::makeFrequencies(std::vector<double> thresholds, st
 {
     //TODO
 
-    frequencies.clear();
+    periods.clear();
     levelThresholds.clear();
     
     this->levelThresholds = thresholds;
     for(auto const f : frequencies)
     {
-        this->frequencies.push_back(1000/f);        
+        this->periods.push_back(1000/f);        
     }
-    this->frequencies = frequencies;
+    this->periods = frequencies;
 }
 
 void patterns::PulseFeedback::setCustomActuation(const double customActuation)
