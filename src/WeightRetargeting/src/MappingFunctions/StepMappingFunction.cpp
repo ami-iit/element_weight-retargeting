@@ -19,7 +19,10 @@ void StepMappingFunction::makeSteps(const std::vector<double>& thresholds, const
     this->commands.clear();
     this->thresholds.clear();
 
-    this->thresholds = thresholds;
+    for(double threshold : thresholds)
+    {
+        this->thresholds.push_back( (maxThreshold - threshold) / (maxThreshold - minThreshold));
+    }
     this->commands = commands;
 }
 
@@ -39,6 +42,7 @@ void StepMappingFunction::makeSteps(const int n)
 
 double StepMappingFunction::getCommand()
 {
+    //TODO TODO TODO check this
     double normalizedValue = LinearMappingFunction::getCommand();
 
     for(int i = thresholds.size()-1; i>=0 ; i--)
