@@ -27,7 +27,8 @@ public:
     const int FRACTIONAL_DIGITS = 1; // Number of digits of the weight's fractional part
 
     double period = 0.02; //Default 50Hz
-    double cutoffFrequency = 1; // Default 1Hz
+    double cutoffFrequencyForces = 1; // Default 1Hz
+    double cutoffFrequencyWeight = 1; // Default Hz
     int lengthWrenchVector = 3; // length of wrench vector
 
     double minWeight = 0.0; // minimum weight to be displayed
@@ -38,6 +39,9 @@ public:
     // ft port
     std::vector<std::string> ftPortNames;
     std::vector<std::unique_ptr<yarp::os::BufferedPort<yarp::sig::Vector>>> ftPorts;
+
+    // ft wrenches read from ports
+    std::vector<yarp::sig::Vector> ftWrenches;
 
     // output port
     std::string portPrefix = "/WeightDisplay";
@@ -65,7 +69,8 @@ public:
     std::vector<double> jointVelBuffer;
 
     // Low pass filter
-    std::vector<SecondOrderLowPassFilter> lowPassFilters;
+    std::vector<SecondOrderLowPassFilter> lowPassFiltersForces;
+    SecondOrderLowPassFilter lowPassFilterWeight;
 
     double getPeriod() override
     {
@@ -98,19 +103,22 @@ public:
         }
 
         // read ports
-        std::vector<yarp::sig::Vector> ftWrenches;
-
-        ftWrenches.resize(ftPorts.size());
-
         for (int ftIdx = 0; ftIdx < ftPorts.size(); ftIdx++)
         {
-            yarp::sig::Vector * tempftWrench = ftPorts[ftIdx]->read(true);
-            if (tempftWrench == nullptr)
+            if (ftPorts[ftIdx]->getInputCount() > 0)
             {
-                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Port " << ftPorts[ftIdx]->getName() << " empty";
-                return false;
+                yarp::sig::Vector * tempftWrench = ftPorts[ftIdx]->read(false);
+
+                if (tempftWrench == nullptr)
+                {
+                    yCIWarning(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Port " << ftPorts[ftIdx]->getName() << " empty";
+                    ftWrenches[ftIdx].zero();
+                }
+                else
+                {
+                    ftWrenches[ftIdx] = (*tempftWrench);
+                }
             }
-            ftWrenches[ftIdx] = (*tempftWrench);
         }
 
         // sum forces
@@ -146,13 +154,15 @@ public:
                 else //use norm
                 {
                     // filter forces
-                    yarp::sig::Vector filteredWrench = lowPassFilters[ftIdx].filt(ftWrenches[ftIdx]);
+                    yarp::sig::Vector filteredWrench = lowPassFiltersForces[ftIdx].filt(ftWrenches[ftIdx]);
 
                     if (filteredWrench[2] < (weightOffset + minWeight) * (-GRAVITY_ACCELERATION))
                     {
                         force = - filteredWrench[2];
 
                         weight = force/GRAVITY_ACCELERATION - weightOffset;
+
+                        weight = lowPassFilterWeight.filt({weight})[0];
                     }
                 }
 
@@ -306,14 +316,24 @@ public:
             yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter period:" << period;
         }
 
-        // read cutoff frequency param
-        if(!rf.check("cutoff_frequency"))
+        // read cutoff frequency param for filtering the forces
+        if(!rf.check("cutoff_frequency_forces"))
         {
-            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter period, using default value" << cutoffFrequency;
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter period, using default value" << cutoffFrequencyForces;
         } else
         {
-            cutoffFrequency = rf.find("cutoff_frequency").asFloat64();
-            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter period:" << cutoffFrequency;
+            cutoffFrequencyForces = rf.find("cutoff_frequency_forces").asFloat64();
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter period:" << cutoffFrequencyForces;
+        }
+
+        // read cutoff frequency param for filtering the weight
+        if(!rf.check("cutoff_frequency_weight"))
+        {
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter period, using default value" << cutoffFrequencyWeight;
+        } else
+        {
+            cutoffFrequencyWeight = rf.find("cutoff_frequency_weight").asFloat64();
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter period:" << cutoffFrequencyWeight;
         }
 
         // read port_prefix param
@@ -452,12 +472,29 @@ public:
 
         // Initialize low-pass filter
         // The filter will filter vectors with length = 3 [fx, fy, fz]
-        lowPassFilters.reserve(ftPortNames.size());
+        lowPassFiltersForces.reserve(ftPortNames.size());
         for (int idx = 0; idx < ftPortNames.size(); idx++)
         {
             SecondOrderLowPassFilter filter;
-            filter.init(cutoffFrequency, 1/period, lengthWrenchVector);
-            lowPassFilters.push_back(filter);
+            if (!filter.init(cutoffFrequencyForces, 1/period, lengthWrenchVector))
+            {
+                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Cannot initialize low pass filter!";
+                return false;
+            }
+            lowPassFiltersForces.push_back(filter);
+        }
+
+        if (!lowPassFilterWeight.init(cutoffFrequencyWeight, 1/period, 1))
+        {
+            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Cannot initialize low pass filter!";
+            return false;
+        }
+
+        // resize vector containing receved wrenches from fts
+        ftWrenches.resize(ftPorts.size());
+        for (int i = 0; i < ftWrenches.size(); i++)
+        {
+            ftWrenches[i].zero();
         }
 
         yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT,  LOG_PREFIX) << "Module started successfully!";
