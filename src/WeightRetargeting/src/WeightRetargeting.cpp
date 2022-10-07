@@ -30,6 +30,7 @@ public:
 
     struct ActuatorGroupHelper
     {
+        int groupIndex;
         std::vector<int> interfaceIndexes;
         double offset;
         WeightRetargeting::ActuatorsGroup& info;
@@ -102,6 +103,11 @@ public:
     bool enableFilter = false;
     SecondOrderLowPassFilter lowPassFilter;
     double cutoffFrequency = 1000;
+
+    // Contacts list
+    bool useContacts = false;
+    yarp::sig::Vector contactsList;
+    yarp::os::BufferedPort<yarp::sig::Vector> contactListPort; 
 
     // Haptic command
     yarp::os::BufferedPort<wearable::msg::WearableActuatorCommand> actuatorCommandPort;
@@ -192,6 +198,8 @@ public:
         // remove offset
         norm = norm+groupInfo.offset;
 
+        contactsList[groupInfo.groupIndex] = norm>groupInfo.info.minThreshold ? 1 : 0;
+
         return computeActuationIntensity(groupInfo, norm);
     }
 
@@ -231,6 +239,7 @@ public:
             actuatorGroupMap.insert({groupName, ActuatorGroupHelper(groupInfo)});
             ActuatorGroupHelper& groupHelper = actuatorGroupMap.at(groupName);
             
+            groupHelper.groupIndex = i;
             groupHelper.offset = 0.0;
 
             // add joint names and indices to the list
@@ -375,6 +384,13 @@ public:
             return false;
         }
 
+        if(useContacts)
+        {
+            yarp::sig::Vector& contactListMsg = contactListPort.prepare();
+            contactListMsg = contactsList;
+            contactListPort.write(false);
+        }
+
         return true;
     }
 
@@ -489,6 +505,16 @@ public:
             yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter enable_low_pass_filter:" << enableFilter;
         }
 
+        // read publish_contacts
+        if(!rf.check("publish_contacts"))
+        {
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter publish_contacts, using default value" << useContacts;
+        } else
+        {
+            useContacts = rf.find("publish_contacts").asBool();
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter publish_contacts:" << useContacts;
+        }
+
         // Read information about the actuator groups
         if(!readActuatorsGroups(rf))
             return false;
@@ -565,6 +591,13 @@ public:
             return false;
         }
 
+        if(useContacts)
+        {
+            contactListPort.open(PORT_PREFIX+"/contacts:o");
+            contactsList.resize(actuatorGroupNames.size());
+            contactsList.zero(); 
+        }
+
         // Initialize RPC
         this->yarp().attachAsServer(rpcPort);
         std::string rpcPortName = PORT_PREFIX+"/rpc:i"; //TODO from config?
@@ -594,6 +627,11 @@ public:
         for(auto & forcePort : forcePorts)
         {
             forcePort->close();
+        }
+
+        if(useContacts)
+        {
+            contactListPort.close();
         }
 
         return true;
