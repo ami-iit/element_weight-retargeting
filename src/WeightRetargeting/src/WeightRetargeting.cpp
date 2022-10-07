@@ -18,6 +18,8 @@
 #include <thrift/WeightRetargetingService.h>
 #include <thrift/WearableActuatorCommand.h>
 
+#include "filters/SecondOrderLowPass.h"
+
 #include "WeightRetargetingLogComponent.h"
 
 #include "ActuatorsGroupFactory.h"
@@ -95,6 +97,10 @@ public:
     std::vector<double> interfaceValues;
     const std::chrono::milliseconds ACQUISITION_TIMEOUT = std::chrono::milliseconds(5000);
     std::chrono::time_point<std::chrono::system_clock> lastAcquisition;
+
+    // Filter
+    SecondOrderLowPassFilter lowPassFilter;
+    double cutoffFrequency = 1000;
 
     // Haptic command
     yarp::os::BufferedPort<wearable::msg::WearableActuatorCommand> actuatorCommandPort;
@@ -335,11 +341,9 @@ public:
         // check if acquisition was successful
         if(acquisitionResult)
         {
-            // update internal data only if acquisition is successful
-            for(int i=0;i<interfaceValues.size();i++)
-            {
-                interfaceValues[i] = buffer[i];
-            }
+
+            // apply the filter
+            interfaceValues = lowPassFilter.filt(buffer);
 
             lastAcquisition = currentTime;
 
@@ -458,6 +462,16 @@ public:
             remoteControlBoards.push_back(remoteBoard);
         } 
         
+        // read cutoff frequency param
+        if(!rf.check("cutoff_frequency"))
+        {
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter min_intensity, using default value" << cutoffFrequency;
+        } else 
+        {
+            cutoffFrequency = rf.find("cutoff_frequency").asFloat64();
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter cutoff_frequency:" << cutoffFrequency;
+        }
+
         // Read information about the actuator groups
         if(!readActuatorsGroups(rf))
             return false;
@@ -521,6 +535,9 @@ public:
         velocities.resize(jointNames.size());
 
         std::fill(interfaceValues.begin(),interfaceValues.end(), 0.0);
+
+        // Init filter
+        lowPassFilter.init(cutoffFrequency, 1/period, interfaceValuesSize);
 
         std::string wearableActuatorCommandPortName = PORT_PREFIX+"/output:o";//TODO config
 

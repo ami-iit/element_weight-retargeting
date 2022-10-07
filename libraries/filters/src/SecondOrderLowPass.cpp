@@ -98,3 +98,20 @@ yarp::sig::Vector SecondOrderLowPassFilter::filt(yarp::sig::Vector u)
 
     return y_yarp;
 }
+
+std::vector<double> SecondOrderLowPassFilter::filt(std::vector<double> u)
+{
+    std::vector<double> y_ret;
+    y_ret.resize(u.size());
+
+    Eigen::VectorXd y_eigen;
+
+    y_eigen = filt(Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(u.data(), u.size()));
+
+    for(int i=0; i<u.size(); i++)
+    {
+        y_ret[i] = y_eigen[i];
+    }
+
+    return y_ret;
+}

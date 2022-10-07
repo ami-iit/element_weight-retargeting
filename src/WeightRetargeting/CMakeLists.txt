@@ -14,4 +14,5 @@ target_link_libraries(WeightRetargetingModule PRIVATE
         WearableActuators::WearableActuators
         YARP::YARP_OS
         YARP::YARP_init
-        YARP::YARP_dev)
+        YARP::YARP_dev
+        filters)

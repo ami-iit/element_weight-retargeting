@@ -47,6 +47,14 @@ public:
     * @return the corresponding output.
     */
     yarp::sig::Vector filt(yarp::sig::Vector u);
+
+    /**
+    * Performs filtering on the actual input.
+    * @param u reference to the actual input.
+    * @return the corresponding output.
+    */
+    std::vector<double> filt(std::vector<double> u);
+
 };
 
 
