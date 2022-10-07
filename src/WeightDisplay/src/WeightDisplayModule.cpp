@@ -494,6 +494,7 @@ public:
         ftWrenches.resize(ftPorts.size());
         for (int i = 0; i < ftWrenches.size(); i++)
         {
+            ftWrenches[i].resize(3);
             ftWrenches[i].zero();
         }
 
