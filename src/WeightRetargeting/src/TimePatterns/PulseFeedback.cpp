@@ -39,7 +39,6 @@ void patterns::PulseFeedback::makeFrequencies(std::vector<double> thresholds, st
     {
         this->periods.push_back(1000/f);        
     }
-    this->periods = frequencies;
 }
 
 void patterns::PulseFeedback::setCustomActuation(const double customActuation)
@@ -64,7 +63,7 @@ void patterns::PulseFeedback::update(double value)
     }
 
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(lastTimestamp-cycleStart).count(); 
-    if(lastTimestamp>=cycleStart)
+    if(elapsed>periods[currentLevel])
     {
         cycleStart = lastTimestamp;
         elapsed -= elapsed;
