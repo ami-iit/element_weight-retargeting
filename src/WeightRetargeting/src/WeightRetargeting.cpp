@@ -12,6 +12,9 @@
 #include <yarp/dev/ICurrentControl.h>
 #include <yarp/dev/IEncodersTimed.h>
 
+#include <yarp/os/BufferedPort.h>
+#include <yarp/sig/Vector.h>
+
 #include <thrift/WeightRetargetingService.h>
 #include <thrift/WearableActuatorCommand.h>
 
@@ -25,7 +28,7 @@ public:
 
     struct ActuatorGroupHelper
     {
-        std::vector<int> jointIndexes;
+        std::vector<int> interfaceIndexes;
         double offset;
         WeightRetargeting::ActuatorsGroup& info;
 
@@ -38,6 +41,7 @@ public:
     {
         JointTorque,
         MotorCurrent,
+        ForcePort,
         Invalid
     };
 
@@ -47,11 +51,15 @@ public:
             return RetargetedValue::JointTorque;
         if(name=="motor_current")
             return RetargetedValue::MotorCurrent;
+        if(name=="force_port")
+            return RetargetedValue::ForcePort;
         
         return RetargetedValue::Invalid;
     }
 
     const std::string LOG_PREFIX = "HapticModule"; 
+
+    const std::string PORT_PREFIX = "/WeightRetargeting";
 
     const std::string IFEEL_SUIT_ACTUATOR_PREFIX = "iFeelSuit::haptic::Node#";
     
@@ -68,6 +76,7 @@ public:
     RetargetedValue retargetedValue;
     yarp::dev::ITorqueControl* iTorqueControl{ nullptr };
     yarp::dev::ICurrentControl* iCurrentControl{ nullptr };
+    std::vector<std::unique_ptr<yarp::os::BufferedPort<yarp::sig::Vector>>> forcePorts;
     
     // Velocity check parameters
     bool useVelocities = false;
@@ -77,9 +86,12 @@ public:
 
     std::vector<std::string> remoteControlBoards;
     std::vector<std::string> jointNames;
-    std::unordered_map<std::string,ActuatorGroupHelper> actuatorGroupMap; 
+
+    std::vector<std::string> actuatorGroupNames;
+    std::unordered_map<std::string,ActuatorGroupHelper> actuatorGroupMap;
 
     // Data acquisition variables
+    int interfaceValuesSize;
     std::vector<double> interfaceValues;
     const std::chrono::milliseconds ACQUISITION_TIMEOUT = std::chrono::milliseconds(5000);
     std::chrono::time_point<std::chrono::system_clock> lastAcquisition;
@@ -105,7 +117,7 @@ public:
     double getNorm(const ActuatorGroupHelper& groupInfo)
     {
         double sum = 0;
-        for(const int &index : groupInfo.jointIndexes)
+        for(const int &index : groupInfo.interfaceIndexes)
         {
             sum += interfaceValues[index] * interfaceValues[index];
         }
@@ -142,7 +154,7 @@ public:
      */
     bool checkGroupVelocity(const ActuatorGroupHelper& groupInfo)
     {
-        for(const int &index : groupInfo.jointIndexes)
+        for(const int &index : groupInfo.interfaceIndexes)
         {
             if(velocities[index]>maxJointVelocity)
             {
@@ -190,6 +202,7 @@ public:
         for(int i=0; i<listOfGroupsBottle->size() ; i++)
         {
             std::string groupName = listOfGroupsBottle->get(i).asString();
+            actuatorGroupNames.push_back(groupName);
 
             // parse the info object
             auto group = rf.findGroup(groupName);
@@ -217,17 +230,41 @@ public:
             for(std::string& axisName : groupInfo.jointAxes)
             {
                 auto it = std::find(jointNames.begin(), jointNames.end(), axisName);
-                // add name only if not already found
+
                 if(it==jointNames.end())
                 {
-                    groupHelper.jointIndexes.push_back(jointNames.size());
                     jointNames.push_back(axisName);
                 }
-                else
+
+                // add name only if not already found
+                if(retargetedValue!=RetargetedValue::ForcePort)
                 {
-                    groupHelper.jointIndexes.push_back(it - jointNames.begin());
+                    for(int j=0; j<3; j++)
+                    {
+                        groupHelper.interfaceIndexes.push_back(i*3 + j);
+                    }
+                }
+                else //TODO no else, use groupHelper.jointIndexes
+                {
+                    if(it==jointNames.end())
+                    {
+                        groupHelper.interfaceIndexes.push_back(jointNames.size()-1);
+                    }
+                    else
+                    {
+                        groupHelper.interfaceIndexes.push_back(it - jointNames.begin());
+                    }
                 }
             }
+        }
+
+        if(retargetedValue==RetargetedValue::ForcePort)
+        {
+            interfaceValuesSize = listOfGroupsBottle->size() * 3;
+        }
+        else
+        {
+            interfaceValuesSize = jointNames.size();
         }
 
         return true;
@@ -263,6 +300,21 @@ public:
         }
     }
 
+    bool acquireForcePortData(double *currs)
+    {
+        for(int i =0; i<actuatorGroupNames.size(); i++)
+        {
+            yarp::sig::Vector* input = forcePorts[i]->read(false);
+        
+            for(int j=0; j<3 ; j++)
+            {
+                currs[i*3+j] = input!=nullptr ? (*input)[j] : 0.0;
+            }
+        }
+
+        return true;
+    }
+
     bool updateModule() override
     {
         std::lock_guard<std::mutex> guard(mutex);
@@ -271,11 +323,12 @@ public:
         // get the data 
         std::vector<double> buffer;
         bool acquisitionResult = false;
-        buffer.resize(jointNames.size());
+        buffer.resize(interfaceValuesSize);
         switch (retargetedValue)
         {
         case RetargetedValue::JointTorque : acquisitionResult = iTorqueControl->getTorques(buffer.data()); break;
         case RetargetedValue::MotorCurrent : acquisitionResult = iCurrentControl->getCurrents(buffer.data()); break;
+        case RetargetedValue::ForcePort : acquisitionResult = acquireForcePortData(buffer.data()); break;
         default: acquisitionResult = false; break;
         } 
 
@@ -283,7 +336,7 @@ public:
         if(acquisitionResult)
         {
             // update internal data only if acquisition is successful
-            for(int i=0;i<jointNames.size();i++)
+            for(int i=0;i<interfaceValues.size();i++)
             {
                 interfaceValues[i] = buffer[i];
             }
@@ -421,12 +474,13 @@ public:
         yarp::os::Bottle& remoteControlBoardsNamesBottle = propRemapper.findGroup("remoteControlBoards").addList();
         for(std::string& s : remoteControlBoards) remoteControlBoardsNamesBottle.addString(robotName+s);
         // localPortPrefix
-        propRemapper.put("localPortPrefix", "/WeightRetargeting/input");
+        propRemapper.put("localPortPrefix", PORT_PREFIX+"/control_board_input");
         yarp::os::Property& remoteControlBoardsOpts = propRemapper.addGroup("REMOTE_CONTROLBOARD_OPTIONS");
         remoteControlBoardsOpts.put("writeStrict", "off");
 
         // open the remapped control board
-        result = remappedControlBoard.open(propRemapper);
+        //TODO find a better solution
+        result = jointNames.size()==0 || remappedControlBoard.open(propRemapper);
         if(!result)
         {
             yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Unable to open the ControlBoardRemapper";
@@ -438,6 +492,15 @@ public:
         {
         case RetargetedValue::JointTorque: result = remappedControlBoard.view(iTorqueControl); break;
         case RetargetedValue::MotorCurrent: result = remappedControlBoard.view(iCurrentControl); break;
+        case RetargetedValue::ForcePort:
+            result = true;
+            for(int actuatorGroupIdx = 0; actuatorGroupIdx < actuatorGroupNames.size() ; actuatorGroupIdx++)
+            {
+                forcePorts.push_back(std::make_unique<yarp::os::BufferedPort<yarp::sig::Vector>>());
+                std::string portName = PORT_PREFIX + "/force_ports/"+actuatorGroupNames[actuatorGroupIdx]+":i";
+                result = forcePorts[actuatorGroupIdx]->open(portName);
+            }
+            break;
         default : result = false;
         }
 
@@ -454,10 +517,12 @@ public:
             return false;
         }
 
-        interfaceValues.resize(jointNames.size());
+        interfaceValues.resize(interfaceValuesSize);
         velocities.resize(jointNames.size());
 
-        std::string wearableActuatorCommandPortName = "/WeightRetargeting/output:o";//TODO config
+        std::fill(interfaceValues.begin(),interfaceValues.end(), 0.0);
+
+        std::string wearableActuatorCommandPortName = PORT_PREFIX+"/output:o";//TODO config
 
         // Initialize actuator command port and connect to command input port
         if(!actuatorCommandPort.open(wearableActuatorCommandPortName))
@@ -468,7 +533,7 @@ public:
 
         // Initialize RPC
         this->yarp().attachAsServer(rpcPort);
-        std::string rpcPortName = "/WeightRetargeting/rpc:i"; //TODO from config?
+        std::string rpcPortName = PORT_PREFIX+"/rpc:i"; //TODO from config?
         // open the RPC port
         if(!rpcPort.open(rpcPortName))
         {
@@ -491,6 +556,12 @@ public:
     bool close() override
     {
         actuatorCommandPort.close();
+
+        for(auto & forcePort : forcePorts)
+        {
+            forcePort->close();
+        }
+
         return true;
     }
 

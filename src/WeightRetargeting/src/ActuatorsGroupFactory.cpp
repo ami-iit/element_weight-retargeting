@@ -210,12 +210,10 @@ bool ActuatorsGroupFactory::parseFromConfig(yarp::os::Bottle& configGroup)
     }
 
     // get list of joints
-    auto jointAxesValue = configGroup.find("joint_axes");
+    auto jointAxesValue = configGroup.check("joint_axes", yarp::os::Value());
     ACTUATORS_GROUP_PARSE_CHECK(!jointAxesValue.isList(),
                                 "Missing a valid joint_axes parameter in group " + groupName);
     auto jointAxesBottle = jointAxesValue.asList();
-    ACTUATORS_GROUP_PARSE_CHECK(jointAxesBottle->size()==0,
-                                "Empty joint_axes parameter in group " +  groupName);
     
     jointAxes.clear();
     for(int i=0 ; i<jointAxesBottle->size() ; i++)
