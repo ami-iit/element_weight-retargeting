@@ -104,9 +104,9 @@ std::vector<double> SecondOrderLowPassFilter::filt(std::vector<double> u)
     std::vector<double> y_ret;
     y_ret.resize(u.size());
 
-    Eigen::VectorXd y_eigen;
+    Eigen::VectorXd y_eigen = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(u.data(), u.size());
 
-    y_eigen = filt(Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(u.data(), u.size()));
+    y_eigen = filt(y_eigen);
 
     for(int i=0; i<u.size(); i++)
     {
