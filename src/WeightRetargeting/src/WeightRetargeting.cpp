@@ -99,6 +99,7 @@ public:
     std::chrono::time_point<std::chrono::system_clock> lastAcquisition;
 
     // Filter
+    bool enableFilter = false;
     SecondOrderLowPassFilter lowPassFilter;
     double cutoffFrequency = 1000;
 
@@ -343,7 +344,13 @@ public:
         {
 
             // apply the filter
-            interfaceValues = lowPassFilter.filt(buffer);
+            if(enableFilter)
+            {
+                interfaceValues = lowPassFilter.filt(buffer);
+            } else
+            {
+                interfaceValues = buffer;
+            }
 
             lastAcquisition = currentTime;
 
@@ -465,11 +472,21 @@ public:
         // read cutoff frequency param
         if(!rf.check("cutoff_frequency"))
         {
-            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter min_intensity, using default value" << cutoffFrequency;
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter cutoff_frequency, using default value" << cutoffFrequency;
         } else 
         {
             cutoffFrequency = rf.find("cutoff_frequency").asFloat64();
             yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter cutoff_frequency:" << cutoffFrequency;
+        }
+
+        // read enable_low_pass_filter
+        if(!rf.check("enable_low_pass_filter"))
+        {
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter enable_low_pass_filter, using default value" << enableFilter;
+        } else
+        {
+            enableFilter = rf.find("enable_low_pass_filter").asBool();
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter enable_low_pass_filter:" << enableFilter;
         }
 
         // Read information about the actuator groups
