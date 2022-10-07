@@ -162,7 +162,7 @@ public:
 
                         weight = force/GRAVITY_ACCELERATION - weightOffset;
 
-                        weight = lowPassFilterWeight.filt({weight})[0];
+                        weight = lowPassFilterWeight.filt(yarp::sig::Vector({weight}))[0];
                     }
                 }
 
