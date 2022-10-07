@@ -316,8 +316,33 @@ public:
         }
     }
 
+    std::vector<double> testVector = {20, 40, 48, 53, 65, 80};
+    double secondsPerLevel = 20;
+    int testCount = 0;
+    int level = 0;
+
     bool acquireForcePortData(double *currs)
     {
+        int cyclesPerLevel = (int)(secondsPerLevel/period);
+
+        if(level==0 && testCount==0 || testCount==cyclesPerLevel-1)
+        {
+            yError()<<"WEIGHT RETARGETING CURRENT TEST LEVEL:"<<testVector[level];
+        }
+
+        for(int i=0;i<interfaceValuesSize; i++)
+        {
+            currs[i] = testVector[level];
+        }
+
+        if(testCount++ == cyclesPerLevel)
+        {
+            testCount = 0;
+            level = (level+1)%testVector.size();
+        }
+
+        return true;
+
         for(int i =0; i<actuatorGroupNames.size(); i++)
         {
             yarp::sig::Vector* input = forcePorts[i]->read(false);
