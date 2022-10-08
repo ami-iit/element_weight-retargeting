@@ -253,15 +253,8 @@ public:
                     jointNames.push_back(axisName);
                 }
 
-                // add name only if not already found
-                if(retargetedValue!=RetargetedValue::ForcePort)
-                {
-                    for(int j=0; j<3; j++)
-                    {
-                        groupHelper.interfaceIndexes.push_back(i*3 + j);
-                    }
-                }
-                else //TODO no else, use groupHelper.jointIndexes
+                //TODO no else, use groupHelper.jointIndexes
+                if(retargetedValue==RetargetedValue::ForcePort)
                 {
                     if(it==jointNames.end())
                     {
@@ -271,6 +264,15 @@ public:
                     {
                         groupHelper.interfaceIndexes.push_back(it - jointNames.begin());
                     }
+                }
+            }
+
+            // Set the indices of the buffer
+            if(retargetedValue==RetargetedValue::ForcePort)
+            {
+                for(int j=0; j<3; j++)
+                {
+                    groupHelper.interfaceIndexes.push_back(i*3 + j);
                 }
             }
         }
