@@ -3,7 +3,7 @@
 using namespace WeightRetargeting;
 
 //TODO
-#define PULSE_DURATION_MS 250
+#define PULSE_DURATION_MS 600
 
 patterns::PulseFeedback::PulseFeedback():TimePattern()
 {
@@ -16,20 +16,29 @@ void patterns::PulseFeedback::makeFrequencies(const int levels, const double max
     periods.clear();
     levelThresholds.clear();
 
-    const double frequencyStep = maxFrequency/levels;
+    const double frequencyStep = maxFrequency/(levels-1);
     double frequency = 0.0;
 
-    for(int i = levels; i>1 ; i--)
+    if (levels == 1)
+    {
+        levelThresholds.push_back(0.5);
+        periods.push_back(1000/maxFrequency);
+    }
+    else
+    {
+        for(int i = 1; i < levels ; i++)
     {
         frequency += frequencyStep;
-        levelThresholds.push_back(1.0/i);
+            levelThresholds.push_back(i/(double)levels);
         periods.push_back(1000/frequency);
     }
 }
 
+}
+
 void patterns::PulseFeedback::makeFrequencies(std::vector<double> thresholds, std::vector<double> frequencies)
 {
-    //TODO
+    //TODO frequencies now are periods in seconds
 
     periods.clear();
     levelThresholds.clear();
@@ -37,7 +46,7 @@ void patterns::PulseFeedback::makeFrequencies(std::vector<double> thresholds, st
     this->levelThresholds = thresholds;
     for(auto const f : frequencies)
     {
-        this->periods.push_back(1000/f);        
+        this->periods.push_back(1000*f);
     }
 }
 
@@ -52,21 +61,21 @@ void patterns::PulseFeedback::update(double value)
 
     //TODO get level index
     int currentLevel = -1;
-    while(currentLevel<levelThresholds.size() && value<levelThresholds[currentLevel+1])
+    for(int i = levelThresholds.size()-1; i>=0 && currentLevel==-1; i--)
     {
-        currentLevel++;
+        if(value>=levelThresholds[i])
+        {
+            currentLevel = i;
+        }
     }
 
-    if(currentLevel!=level)
-    {
-        cycleStart = lastTimestamp;
-    }
+    // Start new cycle if we passed to a new level or if the period is finished
 
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(lastTimestamp-cycleStart).count(); 
-    if(elapsed>periods[currentLevel])
+    double elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(lastTimestamp-cycleStart).count();
+    if(currentLevel!=-1 && (currentLevel!=level || elapsed > periods[currentLevel]))
     {
         cycleStart = lastTimestamp;
-        elapsed -= elapsed;
+        elapsed = 0;
     }
 
     on = (elapsed<PULSE_DURATION_MS);

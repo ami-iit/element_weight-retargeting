@@ -58,8 +58,8 @@ bool ActuatorsGroupFactory::parseStepMapFunction(yarp::os::Bottle& configGroup)
         auto stepThresholdsBottle = configGroup.find("steps_thresholds").asList();
         auto stepCommandsBottle = configGroup.find("steps_commands").asList();
 
-        ACTUATORS_GROUP_PARSE_CHECK(stepCommandsBottle->size()!=stepThresholdsBottle->size()+1, 
-                            "The size of steps_commands paramater must be the size of step_thresholds+1 in group " + groupName)
+        ACTUATORS_GROUP_PARSE_CHECK(stepCommandsBottle->size()!=stepThresholdsBottle->size(),
+                            "The size of steps_commands paramater must be the size of step_thresholds in group " + groupName)
 
         for(int i=0; i< stepThresholdsBottle->size() ; i++)
         {

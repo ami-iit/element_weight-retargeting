@@ -10,8 +10,8 @@ StepMappingFunction::StepMappingFunction() : LinearMappingFunction(){};
 
 void StepMappingFunction::makeSteps(const std::vector<double>& thresholds, const std::vector<double>& commands)
 {
-    if(commands.size()!=thresholds.size()+1)
-        throw std::invalid_argument("Commands must have thresholds.size()+1 values");
+    if(commands.size()!=thresholds.size())
+        throw std::invalid_argument("Commands must have thresholds.size() values");
 
     if(!std::is_sorted(thresholds.begin(), thresholds.end()))
         throw std::invalid_argument("Thresholds parameter must be a sorted list of values");
@@ -21,7 +21,7 @@ void StepMappingFunction::makeSteps(const std::vector<double>& thresholds, const
 
     for(double threshold : thresholds)
     {
-        this->thresholds.push_back( (maxThreshold - threshold) / (maxThreshold - minThreshold));
+        this->thresholds.push_back( (threshold - minThreshold) / (maxThreshold - minThreshold));
     }
     this->commands = commands;
 }
@@ -30,11 +30,18 @@ void StepMappingFunction::makeSteps(const int n)
 {
     commands.clear();
     thresholds.clear();
-    commands.push_back(0.0);
-    for(int i=1; i<=n; i++)
+    if(n==1)
+    {
+        thresholds.push_back(0.0);
+        commands.push_back(1.0);
+    }
+    else
+    {
+        for(int i=1; i<n; i++)
     {
         thresholds.push_back(i/(double)n);
-        commands.push_back(i/(double)n);
+            commands.push_back(i/(double)(n-1));
+        }
     }
 
 }
@@ -47,9 +54,9 @@ double StepMappingFunction::getCommand()
 
     for(int i = thresholds.size()-1; i>=0 ; i--)
     {
-        if(normalizedValue>=thresholds[i])
+        if(normalizedValue>thresholds[i])
         {
-            return commands[i+1];
+            return commands[i];
         }
     }
 
