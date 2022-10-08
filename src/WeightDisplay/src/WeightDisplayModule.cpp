@@ -50,6 +50,7 @@ public:
 
     std::vector<std::string> ftPortNamesOut;
     std::vector<std::unique_ptr<yarp::os::BufferedPort<yarp::os::Bottle>>> outPortSingleFTs;
+    std::vector<bool> warningPrinted;
 
 
     //use velocity info
@@ -83,7 +84,6 @@ public:
         {
             if(ftPorts[i]->getInputCount()==0)
             {
-                yCIWarning(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "No inputs on port" << ftPorts[i]->getName();
                 return true;
             }
         }
@@ -111,8 +111,12 @@ public:
 
                 if (tempftWrench == nullptr)
                 {
-                    yCIWarning(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Port " << ftPorts[ftIdx]->getName() << " empty";
+                    if(!warningPrinted[ftIdx])
+                    {
+                        yCIWarning(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Port " << ftPorts[ftIdx]->getName() << " empty";
+                    }
                     ftWrenches[ftIdx].zero();
+                    warningPrinted[ftIdx] = true;
                 }
                 else
                 {
@@ -365,6 +369,7 @@ public:
             yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found input port name:"<<portName;
             ftPortNames.push_back(portPrefix+"/"+portName+"_ft:i");
             ftPortNamesOut.push_back(portPrefix+"/"+portName+"_weight:o");
+            warningPrinted.push_back(false);
         }
 
         // read min_weight

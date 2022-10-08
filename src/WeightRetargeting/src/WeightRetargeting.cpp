@@ -30,6 +30,7 @@ public:
 
     struct ActuatorGroupHelper
     {
+        double lastCommand = 0;
         int groupIndex;
         std::vector<int> interfaceIndexes;
         double offset;
@@ -292,12 +293,12 @@ public:
      */
     void generateGroupsActuation()
     {
-        for(auto const & pair : actuatorGroupMap)
+        for(auto & pair : actuatorGroupMap)
         {
-            const ActuatorGroupHelper& actuatorGroupHelper = pair.second;
+            ActuatorGroupHelper& actuatorGroupHelper = pair.second;
 
             double actuationIntensity = computeCommand(actuatorGroupHelper);
-            if(actuationIntensity>minIntensity)
+            if(actuationIntensity>minIntensity || (actuationIntensity<=0 && actuatorGroupHelper.lastCommand!=actuationIntensity))
             {
                 //send the haptic command to all the related actuators
                 for(const std::string& actuator : actuatorGroupHelper.info.actuators)
@@ -313,6 +314,8 @@ public:
                     actuatorCommandPort.write(true);
                 }
             }
+
+            actuatorGroupHelper.lastCommand = actuationIntensity;
         }
     }
 

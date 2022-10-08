@@ -3,7 +3,7 @@
 using namespace WeightRetargeting;
 
 //TODO
-#define PULSE_DURATION_MS 600
+#define PULSE_DURATION_MS 100
 
 patterns::PulseFeedback::PulseFeedback():TimePattern()
 {
