@@ -300,6 +300,7 @@ public:
             ActuatorGroupHelper& actuatorGroupHelper = pair.second;
 
             double actuationIntensity = computeCommand(actuatorGroupHelper);
+            if(actuationIntensity<0) actuationIntensity = 0.0;
             if(actuationIntensity>minIntensity || (actuationIntensity<=0 && actuatorGroupHelper.lastCommand!=actuationIntensity))
             {
                 //send the haptic command to all the related actuators
