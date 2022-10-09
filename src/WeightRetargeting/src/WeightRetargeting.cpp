@@ -31,6 +31,7 @@ public:
     struct ActuatorGroupHelper
     {
         double lastCommand = 0;
+        bool forceInputZero = false;
         int groupIndex;
         std::vector<int> interfaceIndexes;
         double offset;
@@ -194,7 +195,7 @@ public:
         }
         
         // compute the norm
-        double norm = getNorm(groupInfo);
+        double norm = groupInfo.forceInputZero ? 0.0 : getNorm(groupInfo);
         
         // remove offset
         norm = norm+groupInfo.offset;
@@ -327,10 +328,29 @@ public:
         for(int i =0; i<actuatorGroupNames.size(); i++)
         {
             yarp::sig::Vector* input = forcePorts[i]->read(false);
-        
+
+            bool validRead = true;
+            if(input!=nullptr)
+            {
+                for(int j=0; j<3; j++)
+                {
+                    if((*input)[j]==0.0){
+                        validRead = false;
+                    }
+                }
+            }
+            actuatorGroupMap.at(actuatorGroupNames[i]).forceInputZero = !validRead;
+            
             for(int j=0; j<3 ; j++)
             {
-                currs[i*3+j] = input!=nullptr ? (*input)[j] : 0.0;
+                if(validRead)
+                {
+                    currs[i*3+j] = input!=nullptr ? (*input)[j] : 0.0;
+                }
+                else //keep last value for the filter
+                {
+                    currs[i*3+j] = interfaceValues[i*3+j];
+                }
             }
         }
 
