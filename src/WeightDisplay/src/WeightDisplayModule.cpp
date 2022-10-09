@@ -102,9 +102,12 @@ public:
             return true;
         }
 
+        std::vector<bool> invalidReads;
+
         // read ports
         for (int ftIdx = 0; ftIdx < ftPorts.size(); ftIdx++)
         {
+            bool invalidRead = false;
             if (ftPorts[ftIdx]->getInputCount() > 0)
             {
                 yarp::sig::Vector * tempftWrench = ftPorts[ftIdx]->read(false);
@@ -120,9 +123,23 @@ public:
                 }
                 else
                 {
-                    ftWrenches[ftIdx] = (*tempftWrench);
+                    yarp::sig::Vector wrenchFromPort = (*tempftWrench);
+                    for(double val : wrenchFromPort)
+                    {
+                        if(val==0.0)
+                        {
+                            invalidRead = true;
+                        }
+                    }
+
+                    // update if not invalid
+                    if(!invalidRead)
+                    {
+                        ftWrenches[ftIdx] = wrenchFromPort;
+                    }
                 }
             }
+            invalidReads.push_back(invalidRead);
         }
 
         // sum forces
@@ -168,6 +185,11 @@ public:
 
                         weight = lowPassFilterWeight.filt(yarp::sig::Vector({weight}))[0];
                     }
+                }
+
+                if(invalidReads[ftIdx])
+                {
+                    weight = 0;
                 }
 
                 if (weight > minWeight)
