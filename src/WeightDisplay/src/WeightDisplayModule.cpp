@@ -321,7 +321,7 @@ public:
                 return false;
             }
             // read port name
-            std::string portName = portPrefix+"/"+infoBottle->get(0).asString();
+            std::string portName = portPrefix+"/"+infoBottle->get(0).asString()+"_ft:i";
 
             // read joint axes
             std::vector<int> jointsIndices = {};
