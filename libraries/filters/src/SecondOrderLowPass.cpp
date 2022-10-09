@@ -46,6 +46,17 @@ bool SecondOrderLowPassFilter::init(const double cutFrequency,
     return true;
 }
 
+bool SecondOrderLowPassFilter::reset()
+{
+    for (int i = 0; i < 2; i++)
+    {
+        u_old[i].setZero();
+        y_old[i].setZero();
+    }
+
+    return true;
+}
+
 void SecondOrderLowPassFilter::computeCoeff()
 {
     double alfa = 1.0 / tan(M_PI * fc / fs);

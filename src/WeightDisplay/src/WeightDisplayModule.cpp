@@ -95,12 +95,12 @@ public:
             getVelocityResult = velocityHelper.iEncodersTimed->getEncoderSpeeds(jointVelBuffer.data());
         }
 
-        if(velocityHelper.useVelocity && !getVelocityResult)
-        {
-            //TODO use timeout
-            //skip cycle
-            return true;
-        }
+        //if(velocityHelper.useVelocity && !getVelocityResult)
+        //{
+        //    //TODO use timeout
+        //    //skip cycle
+        //    return true;
+        //}
 
         std::vector<bool> invalidReads;
         bool sendSum = true;
@@ -125,8 +125,8 @@ public:
                 }
                 else
                 {
-                    yarp::sig::Vector wrenchFromPort = (*tempftWrench); 
-                    for(double val : wrenchFromPort)
+                    ftWrenches[ftIdx] = (*tempftWrench); 
+                    for(double val : ftWrenches[ftIdx])
                     {
                         if(val!=0.0)
                         {
@@ -135,9 +135,9 @@ public:
                     }
 
                     // update if not invalid
-                    if(!invalidRead)
+                    if(invalidRead)
                     {
-                        ftWrenches[ftIdx] = wrenchFromPort;
+                        ftWrenches[ftIdx].zero();
                     }
                 }
             }
@@ -157,9 +157,11 @@ public:
                 auto const& jointsIndices = velocityHelper.portToJoints[ftPorts[ftIdx]->getName()];
                 for(int jntIdx=0; jntIdx<jointsIndices.size(); jntIdx++)
                 {
-                    if(jointVelBuffer[jointsIndices[jntIdx]]>velocityHelper.maxVelocity)
+                    if(abs(jointVelBuffer[jointsIndices[jntIdx]])>velocityHelper.maxVelocity)
                     {
                         readFromPort = false;
+                        lowPassFiltersForces[ftIdx].reset();
+                        lowPassFilterWeights[ftIdx].reset();
                     }
                 }
             }
@@ -184,9 +186,9 @@ public:
                         force = - filteredWrench[2];
 
                         weight = force/GRAVITY_ACCELERATION - weightOffset;
+
+                        weight = lowPassFilterWeights[ftIdx].filt(yarp::sig::Vector({weight}))[0];
                     }
-                    
-                    weight = lowPassFilterWeights[ftIdx].filt(yarp::sig::Vector({weight}))[0];
                 }
 
                 if(invalidReads[ftIdx])
@@ -321,13 +323,24 @@ public:
             // read port name
             std::string portName = portPrefix+"/"+infoBottle->get(0).asString();
 
-
             // read joint axes
             std::vector<int> jointsIndices = {};
             for(int j=1; j<infoBottle->size(); j++)
             {
-                jointsIndices.push_back(velocityHelper.jointAxes.size());
-                velocityHelper.jointAxes.push_back(infoBottle->get(j).asString());
+                std::string axisName = infoBottle->get(j).asString();
+                auto it = std::find(velocityHelper.jointAxes.begin(), velocityHelper.jointAxes.end(), axisName);
+                int jointIndex = -1;
+                if(it==velocityHelper.jointAxes.end()) // new
+                {
+                    jointIndex = velocityHelper.jointAxes.size();
+                    velocityHelper.jointAxes.push_back(axisName);
+                }
+                else // already added
+                {
+                    jointIndex = (int)(it-velocityHelper.jointAxes.begin());
+                }
+
+                jointsIndices.push_back(jointIndex);   
             }
 
             velocityHelper.portToJoints[portName] = jointsIndices;
@@ -351,21 +364,21 @@ public:
         // read cutoff frequency param for filtering the forces
         if(!rf.check("cutoff_frequency_forces"))
         {
-            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter period, using default value" << cutoffFrequencyForces;
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter cutoff_frequency_forces, using default value" << cutoffFrequencyForces;
         } else
         {
             cutoffFrequencyForces = rf.find("cutoff_frequency_forces").asFloat64();
-            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter period:" << cutoffFrequencyForces;
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter cutoff_frequency_forces:" << cutoffFrequencyForces;
         }
 
         // read cutoff frequency param for filtering the weight
         if(!rf.check("cutoff_frequency_weight"))
         {
-            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing parameter period, using default value" << cutoffFrequencyWeight;
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Missing cutoff_frequency_weight period, using default value" << cutoffFrequencyWeight;
         } else
         {
             cutoffFrequencyWeight = rf.find("cutoff_frequency_weight").asFloat64();
-            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found parameter period:" << cutoffFrequencyWeight;
+            yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Found cutoff_frequency_weight period:" << cutoffFrequencyWeight;
         }
 
         // read port_prefix param

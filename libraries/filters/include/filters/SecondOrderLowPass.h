@@ -35,6 +35,11 @@ public:
     bool init(const double cutFrequency, const double samplingFrequency, size_t dimension);
 
     /**
+    * Reset the filter
+    */
+    bool reset();
+
+    /**
     * Performs filtering on the actual input.
     * @param u reference to the actual input.
     * @return the corresponding output.
