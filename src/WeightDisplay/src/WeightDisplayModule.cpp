@@ -103,6 +103,7 @@ public:
         }
 
         std::vector<bool> invalidReads;
+        bool sendSum = true;
 
         // read ports
         for (int ftIdx = 0; ftIdx < ftPorts.size(); ftIdx++)
@@ -204,6 +205,10 @@ public:
                     weightLabelMessage.addString(stream.str());
                     outPortSingleFTs[ftIdx]->write(false);
                 }
+                else
+                {
+                    sendSum = false;
+                }
 
                 weightSum += weight;
 
@@ -212,7 +217,7 @@ public:
         }
 
         // write to port
-        if(weightSum > minWeight)
+        if(sendSum)
         {
             // use stringstream to fix number of fractional digits
             std::ostringstream stream;
