@@ -71,7 +71,7 @@ public:
 
     // Low pass filter
     std::vector<SecondOrderLowPassFilter> lowPassFiltersForces;
-    SecondOrderLowPassFilter lowPassFilterWeight;
+    std::vector<SecondOrderLowPassFilter> lowPassFilterWeights;
 
     double getPeriod() override
     {
@@ -107,7 +107,7 @@ public:
         // read ports
         for (int ftIdx = 0; ftIdx < ftPorts.size(); ftIdx++)
         {
-            bool invalidRead = false;
+            bool invalidRead = true;
             if (ftPorts[ftIdx]->getInputCount() > 0)
             {
                 yarp::sig::Vector * tempftWrench = ftPorts[ftIdx]->read(false);
@@ -120,15 +120,16 @@ public:
                     }
                     ftWrenches[ftIdx].zero();
                     warningPrinted[ftIdx] = true;
+                    invalidRead = false;
                 }
                 else
                 {
-                    yarp::sig::Vector wrenchFromPort = (*tempftWrench);
+                    yarp::sig::Vector wrenchFromPort = (*tempftWrench); 
                     for(double val : wrenchFromPort)
                     {
-                        if(val==0.0)
+                        if(val!=0.0)
                         {
-                            invalidRead = true;
+                            invalidRead = false;
                         }
                     }
 
@@ -182,9 +183,9 @@ public:
                         force = - filteredWrench[2];
 
                         weight = force/GRAVITY_ACCELERATION - weightOffset;
-
-                        weight = lowPassFilterWeight.filt(yarp::sig::Vector({weight}))[0];
                     }
+                    
+                    weight = lowPassFilterWeights[ftIdx].filt(yarp::sig::Vector({weight}))[0];
                 }
 
                 if(invalidReads[ftIdx])
@@ -500,6 +501,7 @@ public:
         // Initialize low-pass filter
         // The filter will filter vectors with length = 3 [fx, fy, fz]
         lowPassFiltersForces.reserve(ftPortNames.size());
+        lowPassFilterWeights.reserve(ftPortNames.size());
         for (int idx = 0; idx < ftPortNames.size(); idx++)
         {
             SecondOrderLowPassFilter filter;
@@ -509,12 +511,15 @@ public:
                 return false;
             }
             lowPassFiltersForces.push_back(filter);
-        }
 
-        if (!lowPassFilterWeight.init(cutoffFrequencyWeight, 1/period, 1))
-        {
-            yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Cannot initialize low pass filter!";
-            return false;
+            SecondOrderLowPassFilter filterWeight;
+            if (!filterWeight.init(cutoffFrequencyWeight, 1/period, 1))
+            {
+                yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Cannot initialize low pass filter!";
+                return false;
+            }
+
+            lowPassFilterWeights.push_back(filterWeight);
         }
 
         // resize vector containing receved wrenches from fts
