@@ -82,6 +82,9 @@ public:
     yarp::dev::ITorqueControl* iTorqueControl{ nullptr };
     yarp::dev::ICurrentControl* iCurrentControl{ nullptr };
     std::vector<std::unique_ptr<yarp::os::BufferedPort<yarp::sig::Vector>>> forcePorts;
+
+    // default z force offset
+    double forceZOffset = 0.0;
     
     // Velocity check parameters
     bool useVelocities = false;
@@ -329,13 +332,13 @@ public:
         {
             yarp::sig::Vector* input = forcePorts[i]->read(false);
 
-            bool validRead = true;
+            bool validRead = false || (input==nullptr);
             if(input!=nullptr)
             {
                 for(int j=0; j<3; j++)
                 {
-                    if((*input)[j]==0.0){
-                        validRead = false;
+                    if((*input)[j]!=0.0){
+                        validRead = true;
                     }
                 }
             }
@@ -346,6 +349,10 @@ public:
                 if(validRead)
                 {
                     currs[i*3+j] = input!=nullptr ? (*input)[j] : 0.0;
+                    if(j==2 && input!=nullptr)
+                    {
+                        currs[i*3+j] = currs[i*3+j] - forceZOffset; 
+                    }
                 }
                 else //keep last value for the filter
                 {
@@ -481,6 +488,13 @@ public:
                 return false;
             }
         }
+
+        // read default_z_offset
+        if(rf.check("default_z_offset") && rf.find("default_z_offset").isFloat64())
+        {
+            forceZOffset = rf.find("default_z_offset").asFloat64();
+        }
+        yCIInfo(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Force z offset:"<< forceZOffset;
 
         // read min_actuation param
         if(!rf.check("min_intensity"))
