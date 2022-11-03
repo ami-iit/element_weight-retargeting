@@ -17,6 +17,8 @@
 #include "filters/SecondOrderLowPass.h"
 #include "WeightRetargetingLogComponent.h"
 
+#define VELOCITY_FLAG_TIMEOUT 2.0
+
 class WeightDisplayModule : public yarp::os::RFModule
 {
 public:
@@ -68,6 +70,8 @@ public:
 
     VelocityHelper velocityHelper;
     std::vector<double> jointVelBuffer;
+    std::vector<std::chrono::time_point<std::chrono::system_clock>> lastVelocityFlagTimestamps;
+
 
     // Low pass filter
     std::vector<SecondOrderLowPassFilter> lowPassFiltersForces;
@@ -159,10 +163,16 @@ public:
                 {
                     if(abs(jointVelBuffer[jointsIndices[jntIdx]])>velocityHelper.maxVelocity)
                     {
-                        readFromPort = false;
+                        lastVelocityFlagTimestamps[ftIdx] = std::chrono::system_clock::now();
                         lowPassFiltersForces[ftIdx].reset();
                         lowPassFilterWeights[ftIdx].reset();
                     }
+                }
+
+                std::chrono::duration<double> elpased_time = std::chrono::system_clock::now() - lastVelocityFlagTimestamps[ftIdx];
+                if(elpased_time.count()<VELOCITY_FLAG_TIMEOUT)
+                {
+                    readFromPort = false;
                 }
             }
 
@@ -514,6 +524,12 @@ public:
                 yCIError(WEIGHT_RETARGETING_LOG_COMPONENT, LOG_PREFIX) << "Cannot view iEncodersTimed!";
                 return false;
             }
+
+            for(int ftIdx = 0; ftIdx<ftPortNames.size(); ftIdx++)
+            {
+                lastVelocityFlagTimestamps.push_back(std::chrono::system_clock::now());
+            }
+            
         }
 
         // Initialize low-pass filter
