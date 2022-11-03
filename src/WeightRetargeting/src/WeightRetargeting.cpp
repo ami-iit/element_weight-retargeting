@@ -24,6 +24,8 @@
 
 #include "ActuatorsGroupFactory.h"
 
+#define VELOCITY_FLAG_TIMEOUT 2.0
+
 class WeightRetargetingModule : public yarp::os::RFModule, WeightRetargetingService
 {
 public:
@@ -36,6 +38,10 @@ public:
         std::vector<int> interfaceIndexes;
         double offset;
         WeightRetargeting::ActuatorsGroup& info;
+
+        // velocity utils
+        std::vector<int> velocityJoints;
+        std::chrono::time_point<std::chrono::system_clock> lastVelocityFlagTimestamp;
 
         ActuatorGroupHelper(WeightRetargeting::ActuatorsGroup& info): info(info){};
     };
@@ -170,17 +176,19 @@ public:
      * @return true if none of the related joints' velocity is above threshold
      * @return false otherwise
      */
-    bool checkGroupVelocity(const ActuatorGroupHelper& groupInfo)
+    bool checkGroupVelocity(ActuatorGroupHelper& groupInfo)
     {
-        for(const int &index : groupInfo.interfaceIndexes)
+        for(const int &index : groupInfo.velocityJoints)
         {
             if(velocities[index]>maxJointVelocity)
             {
-                return false;
+                groupInfo.lastVelocityFlagTimestamp = std::chrono::system_clock::now();
             }
         }
 
-        return true;
+        std::chrono::duration<double> elpased_time = std::chrono::system_clock::now() - groupInfo.lastVelocityFlagTimestamp;
+        
+        return (elpased_time.count()<VELOCITY_FLAG_TIMEOUT);
     }
 
     /**
@@ -189,7 +197,7 @@ public:
      * @param groupInfo the actuators group
      * @return double the value of the actuation command
      */
-    double computeCommand(const ActuatorGroupHelper& groupInfo)
+    double computeCommand(ActuatorGroupHelper& groupInfo)
     {
         //check group velocity
         if(useVelocities && !checkGroupVelocity(groupInfo))
@@ -255,10 +263,15 @@ public:
                 if(it==jointNames.end())
                 {
                     jointNames.push_back(axisName);
+                    groupHelper.velocityJoints.push_back(jointNames.size()-1);
+                }
+                else
+                {
+                    groupHelper.velocityJoints.push_back(it-jointNames.begin());
                 }
 
                 //TODO no else, use groupHelper.jointIndexes
-                if(retargetedValue==RetargetedValue::ForcePort)
+                if(retargetedValue!=RetargetedValue::ForcePort)
                 {
                     if(it==jointNames.end())
                     {
@@ -279,6 +292,8 @@ public:
                     groupHelper.interfaceIndexes.push_back(i*3 + j);
                 }
             }
+
+            groupHelper.lastVelocityFlagTimestamp = std::chrono::system_clock::now();
         }
 
         if(retargetedValue==RetargetedValue::ForcePort)
@@ -399,11 +414,13 @@ public:
             // get the velocities
             if(useVelocities)
             {
-                if(iEncodersTimed->getEncoderSpeeds(buffer.data()))
+                std::vector<double> velocityBuffer;
+                velocityBuffer.resize(jointNames.size());
+                if(iEncodersTimed->getEncoderSpeeds(velocityBuffer.data()))
                 {
                     for(int i=0;i<jointNames.size();i++)
                     {
-                        velocities[i] = buffer[i];
+                        velocities[i] = velocityBuffer[i];
                     }
                 }
             }
